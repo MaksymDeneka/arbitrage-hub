@@ -64,30 +64,25 @@ export class DEXPriceFetcher {
     this.initializeProviders();
   }
 
-  /**
-   * INITIALIZE RPC PROVIDERS
-   * Pre-create providers for all supported chains
-   */
+
+  //pre create providers for all supported chains
   private initializeProviders(): void {
     for (const [chain, config] of Object.entries(CHAIN_CONFIGS)) {
       try {
         const provider = new ethers.JsonRpcProvider(config.rpcUrl);
         this.providers.set(chain, provider);
-        console.log(`✅ Initialized ${config.name} provider`);
+        console.log(`Initialized ${config.name} provider`);
       } catch (error) {
-        console.error(`❌ Failed to initialize ${config.name} provider:`, error);
+        console.error(`Failed to initialize ${config.name} provider:`, error);
       }
     }
   }
 
-  /**
-   * GET PRICE FROM DEX CONTRACT
-   * Main price fetching method with caching
-   */
+
   async getPrice(chain: string, contractAddress: string, ticker: string): Promise<number> {
     const cacheKey = `${chain}-${contractAddress}`;
 
-    // Check cache first
+    //check cache first
     const cached = this.priceCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
       return cached.price;
@@ -96,13 +91,13 @@ export class DEXPriceFetcher {
     try {
       const price = await this.fetchPriceFromContract(chain, contractAddress);
 
-      // Cache the result
+      //cache the result
       this.priceCache.set(cacheKey, {
         price,
         timestamp: Date.now(),
       });
 
-      // Update price store
+      //update price store
       const priceData: PriceData = {
         exchange: `${chain}-dex`,
         symbol: ticker,
@@ -120,10 +115,9 @@ export class DEXPriceFetcher {
     }
   }
 
-  /**
-   * FETCH PRICE FROM UNISWAP V2 STYLE CONTRACT
-   * Works with PancakeSwap, Uniswap, SushiSwap, etc.
-   */
+
+  //FETCH PRICE FROM UNISWAP V2 STYLE CONTRACT
+  //Works with PancakeSwap, Uniswap, SushiSwap, etc.
   private async fetchPriceFromContract(chain: string, contractAddress: string): Promise<number> {
     const provider = this.providers.get(chain);
     if (!provider) {
@@ -192,6 +186,7 @@ export class DEXPriceFetcher {
     reserve1: bigint,
     config: ChainConfig,
   ): Promise<number> {
+		
     //NEED TO FETCH WETH PRICE !!!!!!!!!!!!!!!!!!!!!!!!!!!
 
     const isToken0WETH = token0.toLowerCase() === config.wethAddress.toLowerCase();
