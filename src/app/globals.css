@@ -76,6 +76,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+	--profit-green: #22c55e;
+  --profit-green-bg: rgba(34, 197, 94, 0.1);
+  --warning-yellow: #f59e0b;
+  --warning-yellow-bg: rgba(245, 158, 11, 0.1);
+  --error-red: #ef4444;
+  --error-red-bg: rgba(239, 68, 68, 0.1);
+  --border-gray: #374151;
+  --bg-dark: #0f172a;
+  --bg-card: #1e293b;
 }
 
 .dark {
@@ -118,5 +127,169 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+.flash-profit {
+  animation: flashProfit 0.5s ease-in-out;
+  transform: translateZ(0); /* Force GPU layer */
+}
+
+@keyframes flashProfit {
+  0% { 
+    background-color: var(--profit-green-bg);
+    transform: scale(1);
+  }
+  50% { 
+    background-color: var(--profit-green);
+    transform: scale(1.02);
+    box-shadow: 0 0 20px var(--profit-green);
+  }
+  100% { 
+    background-color: var(--profit-green-bg);
+    transform: scale(1);
+  }
+}
+
+.flash-update {
+  animation: flashUpdate 0.3s ease-in-out;
+  transform: translateZ(0);
+}
+
+@keyframes flashUpdate {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.01); }
+  100% { transform: scale(1); }
+}
+
+
+/*price update animation*/
+.price-up {
+  color: var(--profit-green);
+  animation: priceUp 0.2s ease-out;
+}
+
+.price-down {
+  color: var(--error-red);
+  animation: priceDown 0.2s ease-out;
+}
+
+@keyframes priceUp {
+  0% { transform: translateY(2px); opacity: 0.8; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes priceDown {
+  0% { transform: translateY(-2px); opacity: 0.8; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+/*animation for loading states*/
+.pulse-custom {
+  animation: pulseCustom 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulseCustom {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/*connection status indicators*/
+.status-connected {
+  color: var(--profit-green);
+}
+
+.status-connecting {
+  color: var(--warning-yellow);
+  animation: pulse 1s infinite;
+}
+
+.status-error {
+  color: var(--error-red);
+}
+
+.status-disconnected {
+  color: #6b7280;
+}
+
+/*arbitrage oportunity cards*/
+.opportunity-card {
+  transition: all 0.2s ease-in-out;
+  border: 2px solid transparent;
+}
+
+.opportunity-card.high-profit {
+  border-color: var(--profit-green);
+  background: linear-gradient(135deg, var(--profit-green-bg), var(--bg-card));
+}
+
+.opportunity-card.medium-profit {
+  border-color: var(--warning-yellow);
+  background: linear-gradient(135deg, var(--warning-yellow-bg), var(--bg-card));
+}
+
+.opportunity-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+
+/*scrollbar*/
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-gray);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4b5563;
+}
+
+
+@layer utilities {
+  .text-shadow {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+  
+  .glow-green {
+    box-shadow: 0 0 10px var(--profit-green);
+  }
+  
+  .glow-yellow {
+    box-shadow: 0 0 10px var(--warning-yellow);
+  }
+  
+  .backdrop-blur-custom {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+
+/*reduce motion*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .opportunity-card {
+    padding: 12px;
+  }
+  
+  .flash-profit {
+    transform: none;
   }
 }
