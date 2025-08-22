@@ -14,8 +14,6 @@ export const metadata: Metadata = {
   description: 'Monitor cryptocurrency arbitrage opportunities across exchanges and DEX platforms in real time',
   keywords: 'crypto, arbitrage, trading, cryptocurrency, DEX, exchanges',
   authors: [{ name: 'Crypto Arbitrage Hub' }],
-  viewport: 'width=device-width, initial-scale=1',
-  themeColor: '#000000',
   robots: 'noindex, nofollow'
 };
 
