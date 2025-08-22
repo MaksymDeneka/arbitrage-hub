@@ -13,29 +13,29 @@ export function ArbitrageMonitor({ ticker }: ArbitrageMonitorProps) {
   const [flashingOpportunity, setFlashingOpportunity] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   
+
   useEffect(() => {
-    //subscribe to arbitrage opportunities
     const unsubscribe = priceStore.subscribe(ticker, (tickerName, newOpportunities) => {
-      if (tickerName === ticker) {
-        //flash animation for new high-profit opportunities
-        const highProfitOpp = newOpportunities.find(opp => opp.profitPercent >= 5);
-        if (highProfitOpp && opportunities.length < newOpportunities.length) {
-          const oppId = `${highProfitOpp.buyFrom.exchange}-${highProfitOpp.sellTo.exchange}`;
-          setFlashingOpportunity(oppId);
-          setTimeout(() => setFlashingOpportunity(null), 1000);
-          
-          //play sound notification
-          if (soundEnabled) {
-            playNotificationSound();
-          }
+      if (tickerName !== ticker) return;
+
+      const highProfitOpp = newOpportunities.find(opp => opp.profitPercent >= 5);
+
+      if (highProfitOpp && opportunities.length < newOpportunities.length) {
+        const oppId = `${highProfitOpp.buyFrom.exchange}-${highProfitOpp.sellTo.exchange}`;
+        setFlashingOpportunity(oppId);
+        setTimeout(() => setFlashingOpportunity(null), 1000);
+
+        if (soundEnabled) {
+          playNotificationSound();
         }
-        
-        setOpportunities(newOpportunities);
       }
+
+      setOpportunities(newOpportunities);
     });
-    
+
+    //cleanup
     return () => {
-      unsubscribe(ticker, () => {});
+      unsubscribe();
     };
   }, [ticker, opportunities.length, soundEnabled]);
   
