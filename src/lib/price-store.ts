@@ -140,20 +140,30 @@ class PriceStore {
     });
   }
   
-  subscribe(ticker: string, callback: ArbitrageCallback): void {
-    if (!this.callbacks.has(ticker)) {
-      this.callbacks.set(ticker, []);
-    }
-    this.callbacks.get(ticker)!.push(callback);
-  }
+	subscribe(ticker: string, callback: ArbitrageCallback): () => void {
+		if (!this.callbacks.has(ticker)) {
+			this.callbacks.set(ticker, []);
+		}
+		this.callbacks.get(ticker)!.push(callback);
+
+		return () => {
+			this.unsubscribe(ticker, callback);
+		};
+	}
   
-  unsubscribe(ticker: string, callback: ArbitrageCallback): void {
-    const callbacks = this.callbacks.get(ticker) || [];
-    const index = callbacks.indexOf(callback);
-    if (index > -1) {
-      callbacks.splice(index, 1);
-    }
-  }
+	unsubscribe(ticker: string, callback: ArbitrageCallback): void {
+		const callbacks = this.callbacks.get(ticker);
+		if (!callbacks) return;
+
+		const index = callbacks.indexOf(callback);
+		if (index > -1) {
+			callbacks.splice(index, 1);
+		}
+		//arrays cleanup
+		// if (callbacks.length === 0) {
+		// 	this.callbacks.delete(ticker);
+		// }
+	}
   
   setThreshold(ticker: string, threshold: number): void {
     this.thresholds.set(ticker, threshold);
