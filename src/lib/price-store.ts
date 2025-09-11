@@ -1,17 +1,17 @@
-import { PriceData, ArbitrageOpportunity, TokenConfig } from './types';
+import { PriceData, ArbitrageOpportunity } from './types';
 
-const SPREAD_THRESHOLDS = {
-  1: 0.01,
-  2: 0.02,
-  3: 0.03,
-  5: 0.05,
-  10: 0.10
-} as const;
+// const SPREAD_THRESHOLDS = {
+//   1: 0.01,
+//   2: 0.02,
+//   3: 0.03,
+//   5: 0.05,
+//   10: 0.10
+// } as const;
 
 type ArbitrageCallback = (ticker: string, opportunities: ArbitrageOpportunity[]) => void;
 
 class PriceStore {
-  //using Maps for faster lookups instead of arrays
+
   private prices = new Map<string, Map<string, PriceData>>();
   private callbacks = new Map<string, ArbitrageCallback[]>();
   private lastOpportunities = new Map<string, ArbitrageOpportunity[]>();
