@@ -1,59 +1,60 @@
 import { BaseExchange } from './base-exchange';
-import { BinanceExchange, BinanceFuturesExchange } from './binance';
-
-export const SUPPORTED_EXCHANGES = {
-  //Spot exchanges
-  'binance': BinanceExchange,
-  //Futures exchanges
-  'binance-futures': BinanceFuturesExchange,
-
-  //Spot
-  'mexc': MexcExchange,
-  //Futures
-  'mexc-futures': MexcFuturesExchange,
-
-} as const;
-
-export type SupportedExchange = keyof typeof SUPPORTED_EXCHANGES;
-
-
+import { MarketType } from '../types';
+import { BinanceExchange } from './binance';
+import { MEXCExchange } from './mexc';
 
 export class ExchangeFactory {
+  private static exchangeInstances = new Map<string, BaseExchange>();
 
-	//create exchange instance
   static createExchange(exchangeName: string): BaseExchange | null {
-    const ExchangeClass = SUPPORTED_EXCHANGES[exchangeName as SupportedExchange];
-    
-    if (!ExchangeClass) {
-      console.error(`Unsupported exchange: ${exchangeName}`);
-      return null;
+
+    if (this.exchangeInstances.has(exchangeName)) {
+      return this.exchangeInstances.get(exchangeName)!;
     }
-    
-    try {
-      return new ExchangeClass();
-    } catch (error) {
-      console.error(`Failed to create ${exchangeName} exchange:`, error);
-      return null;
+
+    let exchange: BaseExchange | null = null;
+
+    switch (exchangeName.toLowerCase()) {
+      case 'binance':
+        exchange = new BinanceExchange();
+        break;
+      case 'mexc':
+        exchange = new MEXCExchange();
+        break;
+      default:
+        console.error(`Unknown exchange: ${exchangeName}`);
+        return null;
     }
-  }
-  
-  //get list of supported exchanges
-  static getSupportedExchanges(): string[] {
-    return Object.keys(SUPPORTED_EXCHANGES);
+
+    if (exchange) {
+      this.exchangeInstances.set(exchangeName, exchange);
+    }
+
+    return exchange;
   }
 
-  //Check if exchange is supported
-  static isSupported(exchangeName: string): boolean {
-    return exchangeName in SUPPORTED_EXCHANGES;
-  }
-  
-  //get spot exchanges only
-  static getSpotExchanges(): string[] {
-    return ['binance', 'mexc', 'okx', 'bybit'];
+  static getSupportedExchanges(): { name: string; markets: MarketType[] }[] {
+    return [
+      { name: 'binance', markets: ['spot', 'futures'] },
+      { name: 'mexc', markets: ['spot', 'futures'] },
+    ];
   }
 
-  //get futures exchanges only
-  static getFuturesExchanges(): string[] {
-    return ['binance-futures', 'mexc', 'okx-futures', 'bybit-futures'];
+  static isExchangeSupported(exchangeName: string): boolean {
+    return this.getSupportedExchanges().some(ex => 
+      ex.name.toLowerCase() === exchangeName.toLowerCase()
+    );
+  }
+
+  static getExchangeMarkets(exchangeName: string): MarketType[] {
+    const exchange = this.getSupportedExchanges().find(ex => 
+      ex.name.toLowerCase() === exchangeName.toLowerCase()
+    );
+    return exchange?.markets || [];
+  }
+
+  // Clear cached instances
+  static clearCache(): void {
+    this.exchangeInstances.clear();
   }
 }
