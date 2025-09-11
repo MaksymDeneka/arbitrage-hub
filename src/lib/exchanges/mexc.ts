@@ -5,6 +5,7 @@ import { PriceData, MarketType } from '../types';
 export class MEXCExchange extends BaseExchange {
   constructor() {
     super('mexc', ['spot', 'futures']);
+    this.requiresSubscription = { spot: true, futures: true };
   }
 
   async checkTokenListing(ticker: string): Promise<{

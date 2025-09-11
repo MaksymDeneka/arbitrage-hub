@@ -12,6 +12,16 @@ export abstract class BaseExchange {
   protected exchangeName = '';
   protected supportedMarkets: MarketType[] = ['spot'];
 
+  protected outgoingQueues: Map<MarketType, string[]> = new Map();
+
+  //marking stream/sub connections
+  protected requiresSubscription: { [key in MarketType]?: boolean } = {
+    spot: false,
+    futures: false,
+  };
+
+  protected autoPong = true;
+
   //spot
   protected onMessageBound = this.onMessage.bind(this);
   protected onOpenBound = this.onOpen.bind(this);
@@ -31,6 +41,7 @@ export abstract class BaseExchange {
     //reconnect attempts for each market type
     supportedMarkets.forEach((market) => {
       this.reconnectAttempts.set(market, 0);
+      this.outgoingQueues.set(market, []);
     });
   }
 
@@ -78,6 +89,8 @@ export abstract class BaseExchange {
   }
 
   protected setupWebSocket(url: string, ticker: string, marketType: MarketType = 'spot'): void {
+    if (!this.outgoingQueues.has(marketType)) this.outgoingQueues.set(marketType, []);
+
     const ws = marketType === 'spot' ? 'ws' : 'futuresWs';
 
     if (this[ws] && this[ws]!.readyState === WebSocket.OPEN) {
@@ -157,14 +170,53 @@ export abstract class BaseExchange {
     this.reconnectAttempts.set(marketType, 0);
 
     this.updateConnectionStatus(marketType, 'connected');
-    this.subscribe(this.ticker, marketType);
+
+    this.flushOutgoingQueue(marketType);
+
+    try {
+      this.subscribe(this.ticker, marketType);
+    } catch (err) {
+      console.error(`${this.exchangeName} subscribe error:`, err);
+    }
+
+    this.flushOutgoingQueue(marketType);
   }
 
   private handleMessage(event: MessageEvent, marketType: MarketType): void {
     try {
-      const data = JSON.parse(event.data);
-      const priceUpdate = this.parseMessage(data, marketType);
-      console.log(priceUpdate);
+      const raw = JSON.parse(event.data);
+
+      // Auto-ping handling
+      if (this.handlePing(raw, marketType)) return;
+
+      //handler for combined-stream wrapper: { stream: 'x', data: {...} }
+      if (raw && typeof raw === 'object' && 'data' in raw && 'stream' in raw) {
+        // unwrap and parse the inner data
+        const inner = raw.data;
+        const priceUpdate = this.parseMessage(inner, marketType);
+        if (priceUpdate) {
+          const exchangeKey =
+            marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
+          priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);
+        }
+        return;
+      }
+
+      //if server sent an array
+      if (Array.isArray(raw)) {
+        for (const item of raw) {
+          const parsed = this.parseMessage(item, marketType);
+          if (parsed) {
+            const exchangeKey =
+              marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
+            priceStore.updatePrice(this.ticker, exchangeKey, parsed);
+          }
+        }
+        return;
+      }
+
+      //default: just parseMessage
+      const priceUpdate = this.parseMessage(raw, marketType);
       if (priceUpdate) {
         const exchangeKey =
           marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
@@ -251,6 +303,39 @@ export abstract class BaseExchange {
     this.onStatusUpdate?.(connectionStatus);
   }
 
+  protected flushOutgoingQueue(marketType: MarketType) {
+    const queue = this.outgoingQueues.get(marketType) || [];
+    const ws = marketType === 'spot' ? this.ws : this.futuresWs;
+    while (queue.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+      const msg = queue.shift()!;
+      try {
+        ws.send(msg);
+      } catch (err) {
+        console.warn(`${this.exchangeName} failed to send queued message:`, err);
+        queue.unshift(msg);
+        break;
+      }
+    }
+    this.outgoingQueues.set(marketType, queue);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  protected handlePing(raw: any, marketType: MarketType) {
+    if (this.autoPong && raw && typeof raw === 'object') {
+      if ('ping' in raw) {
+        const pongMsg = JSON.stringify({ pong: raw.ping });
+        this.sendMessage(pongMsg, marketType);
+        return true;
+      }
+      if (raw.op === 'ping') {
+        const pong = JSON.stringify({ op: 'pong', ts: Date.now() });
+        this.sendMessage(pong, marketType);
+        return true;
+      }
+    }
+    return false;
+  }
+
   public async reconnect(marketTypes: MarketType[] = ['spot']): Promise<void> {
     const validMarketTypes = marketTypes.filter((type) => this.supportedMarkets.includes(type));
 
@@ -297,10 +382,19 @@ export abstract class BaseExchange {
     const ws = marketType === 'spot' ? this.ws : this.futuresWs;
 
     if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(message);
-    } else {
-      console.warn(`Cannot send message - ${this.exchangeName} ${marketType} not connected`);
+      try {
+        ws.send(message);
+      } catch (err) {
+        console.error(`${this.exchangeName} send message error:`, err);
+      }
+      return;
     }
+
+    // not OPEN -> queue it
+    console.warn(`Queuing message - ${this.exchangeName} ${marketType} not open`);
+    const queue = this.outgoingQueues.get(marketType) || [];
+    queue.push(message);
+    this.outgoingQueues.set(marketType, queue);
   }
 
   public getSupportedMarkets(): MarketType[] {

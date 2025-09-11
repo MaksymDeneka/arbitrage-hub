@@ -14,74 +14,72 @@ export class BinanceExchange extends BaseExchange {
   }> {
     try {
       const symbol = `${ticker.toUpperCase()}USDT`;
-      
+
       // Check spot listing
       const spotResponse = await fetch(`https://api.binance.com/api/v3/exchangeInfo`);
       const spotData = await spotResponse.json();
-      
-      const spotListed = spotData.symbols?.some((s: any) => 
-        s.symbol === symbol && s.status === 'TRADING'
-      ) || false;
+
+      const spotListed =
+        spotData.symbols?.some((s: any) => s.symbol === symbol && s.status === 'TRADING') || false;
 
       // Check futures listing
       const futuresResponse = await fetch(`https://fapi.binance.com/fapi/v1/exchangeInfo`);
       const futuresData = await futuresResponse.json();
-      
-      const futuresListed = futuresData.symbols?.some((s: any) => 
-        s.symbol === symbol && s.status === 'TRADING'
-      ) || false;
+
+      const futuresListed =
+        futuresData.symbols?.some((s: any) => s.symbol === symbol && s.status === 'TRADING') ||
+        false;
 
       return {
         spot: spotListed,
         futures: futuresListed,
-        symbol: symbol
+        symbol: symbol,
       };
     } catch (error) {
       console.error('Binance token listing check failed:', error);
       return { spot: false, futures: false };
     }
   }
-  
+
   async connectSpot(ticker: string): Promise<void> {
     const symbol = ticker.toLowerCase();
-    
-    const streams = [
-      `${symbol}usdt@ticker`,
-      `${symbol}usdt@bookTicker`
-    ];
-    
+
+    const streams = [`${symbol}usdt@ticker`, `${symbol}usdt@bookTicker`];
+
     const wsUrl = `wss://stream.binance.com:9443/ws/${streams.join('/')}`;
-    
+
     console.log(`🔗 Connecting to Binance SPOT: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'spot');
   }
 
   async connectFutures(ticker: string): Promise<void> {
     const symbol = ticker.toLowerCase();
-    
-    const streams = [
-      `${symbol}usdt@ticker`,
-      `${symbol}usdt@bookTicker`
-    ];
-    
+
+    const streams = [`${symbol}usdt@ticker`, `${symbol}usdt@bookTicker`];
+
     const wsUrl = `wss://fstream.binance.com/ws/${streams.join('/')}`;
-    
+
     console.log(`🔗 Connecting to Binance FUTURES: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'futures');
   }
-  
+
   parseMessage(data: any, marketType: MarketType): PriceData | null {
     try {
+      // support combined-stream wrapper { stream, data }
+      if (data && typeof data === 'object' && 'data' in data && 'stream' in data) {
+        return this.parseMessage((data as any).data, marketType);
+      }
+
       // Handle individual ticker messages
       if (data.e === '24hrTicker') {
         return this.parseTicker(data, marketType);
       }
-      
+
       // Handle book ticker (best bid/ask)
       if (data.e === 'bookTicker') {
         return this.parseBookTicker(data, marketType);
       }
-      
+
       // Handle array of messages (stream response)
       if (Array.isArray(data)) {
         for (const item of data) {
@@ -89,9 +87,8 @@ export class BinanceExchange extends BaseExchange {
           if (parsed) return parsed;
         }
       }
-      
+
       return null;
-      
     } catch (error) {
       console.warn(`Binance ${marketType} parse error:`, error);
       return null;
@@ -105,25 +102,25 @@ export class BinanceExchange extends BaseExchange {
       price: parseFloat(data.c),
       timestamp: data.E || Date.now(),
       type: marketType,
-      volume: parseFloat(data.v || '0')
+      volume: parseFloat(data.v || '0'),
     };
   }
-  
+
   private parseBookTicker(data: any, marketType: MarketType): PriceData {
     const bidPrice = parseFloat(data.b);
     const askPrice = parseFloat(data.a);
     const midPrice = (bidPrice + askPrice) / 2;
-    
+
     return {
       exchange: marketType === 'spot' ? 'binance' : 'binance-futures',
       symbol: data.s,
       price: midPrice,
       timestamp: Date.now(),
       type: marketType,
-      volume: 0
+      volume: 0,
     };
   }
-  
+
   subscribe(ticker: string, marketType: MarketType): void {
     console.log(`Subscribed to Binance ${marketType.toUpperCase()} streams for ${ticker}`);
     // No explicit subscription needed for Binance - streams are specified in URL
