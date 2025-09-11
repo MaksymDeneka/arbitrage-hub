@@ -11,25 +11,25 @@ export abstract class BaseExchange {
   protected ticker = '';
   protected exchangeName = '';
   protected supportedMarkets: MarketType[] = ['spot'];
-  
+
   //spot
   protected onMessageBound = this.onMessage.bind(this);
   protected onOpenBound = this.onOpen.bind(this);
   protected onCloseBound = this.onClose.bind(this);
   protected onErrorBound = this.onError.bind(this);
-  
-	//futures
+
+  //futures
   protected onFuturesMessageBound = this.onFuturesMessage.bind(this);
   protected onFuturesOpenBound = this.onFuturesOpen.bind(this);
   protected onFuturesCloseBound = this.onFuturesClose.bind(this);
   protected onFuturesErrorBound = this.onFuturesError.bind(this);
-  
+
   constructor(exchangeName: string, supportedMarkets: MarketType[] = ['spot']) {
     this.exchangeName = exchangeName;
     this.supportedMarkets = supportedMarkets;
-    
+
     //reconnect attempts for each market type
-    supportedMarkets.forEach(market => {
+    supportedMarkets.forEach((market) => {
       this.reconnectAttempts.set(market, 0);
     });
   }
@@ -46,11 +46,15 @@ export abstract class BaseExchange {
 
   async connect(ticker: string, marketTypes: MarketType[] = ['spot']): Promise<void> {
     this.ticker = ticker;
-    
-    const validMarketTypes = marketTypes.filter(type => this.supportedMarkets.includes(type));
-    
+
+    const validMarketTypes = marketTypes.filter((type) => this.supportedMarkets.includes(type));
+
     if (validMarketTypes.length === 0) {
-      throw new Error(`Exchange ${this.exchangeName} doesn't support any of the requested market types: ${marketTypes.join(', ')}`);
+      throw new Error(
+        `Exchange ${
+          this.exchangeName
+        } doesn't support any of the requested market types: ${marketTypes.join(', ')}`,
+      );
     }
 
     const connectionPromises = validMarketTypes.map(async (marketType) => {
@@ -62,30 +66,30 @@ export abstract class BaseExchange {
         }
       } catch (error) {
         console.error(`Failed to connect to ${this.exchangeName} ${marketType}:`, error);
-        this.updateConnectionStatus(marketType, 'error', error instanceof Error ? error.message : 'Connection failed');
+        this.updateConnectionStatus(
+          marketType,
+          'error',
+          error instanceof Error ? error.message : 'Connection failed',
+        );
       }
     });
 
     await Promise.allSettled(connectionPromises);
   }
 
-  protected setupWebSocket(
-    url: string, 
-    ticker: string, 
-    marketType: MarketType = 'spot'
-  ): void {
+  protected setupWebSocket(url: string, ticker: string, marketType: MarketType = 'spot'): void {
     const ws = marketType === 'spot' ? 'ws' : 'futuresWs';
-    
+
     if (this[ws] && this[ws]!.readyState === WebSocket.OPEN) {
       this[ws]!.close();
     }
-    
+
     this.ticker = ticker;
     this.isConnecting.add(marketType);
-    
+
     try {
       this[ws] = new WebSocket(url);
-      
+
       if (marketType === 'spot') {
         this.ws!.onopen = this.onOpenBound;
         this.ws!.onmessage = this.onMessageBound;
@@ -105,7 +109,6 @@ export abstract class BaseExchange {
           this.handleConnectionTimeout(marketType);
         }
       }, 5000);
-      
     } catch (error) {
       this.handleError(`${marketType} connection failed`, error, marketType);
     }
@@ -115,16 +118,16 @@ export abstract class BaseExchange {
     console.log(`${this.exchangeName} SPOT connected for ${this.ticker}`);
     this.handleConnectionSuccess('spot');
   }
-  
+
   private onMessage(event: MessageEvent): void {
     this.handleMessage(event, 'spot');
   }
-  
+
   private onClose(event: CloseEvent): void {
     console.log(`${this.exchangeName} SPOT disconnected:`, event.reason);
     this.handleDisconnection(event, 'spot');
   }
-  
+
   private onError(event: Event): void {
     console.error(`${this.exchangeName} SPOT WebSocket error:`, event);
     this.updateConnectionStatus('spot', 'error', 'WebSocket error occurred');
@@ -134,16 +137,16 @@ export abstract class BaseExchange {
     console.log(`${this.exchangeName} FUTURES connected for ${this.ticker}`);
     this.handleConnectionSuccess('futures');
   }
-  
+
   private onFuturesMessage(event: MessageEvent): void {
     this.handleMessage(event, 'futures');
   }
-  
+
   private onFuturesClose(event: CloseEvent): void {
     console.log(`${this.exchangeName} FUTURES disconnected:`, event.reason);
     this.handleDisconnection(event, 'futures');
   }
-  
+
   private onFuturesError(event: Event): void {
     console.error(`${this.exchangeName} FUTURES WebSocket error:`, event);
     this.updateConnectionStatus('futures', 'error', 'WebSocket error occurred');
@@ -152,7 +155,7 @@ export abstract class BaseExchange {
   private handleConnectionSuccess(marketType: MarketType): void {
     this.isConnecting.delete(marketType);
     this.reconnectAttempts.set(marketType, 0);
-    
+
     this.updateConnectionStatus(marketType, 'connected');
     this.subscribe(this.ticker, marketType);
   }
@@ -161,12 +164,12 @@ export abstract class BaseExchange {
     try {
       const data = JSON.parse(event.data);
       const priceUpdate = this.parseMessage(data, marketType);
-      
+      console.log(priceUpdate);
       if (priceUpdate) {
-        const exchangeKey = marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
+        const exchangeKey =
+          marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
         priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);
       }
-      
     } catch (error) {
       console.warn(`${this.exchangeName} ${marketType} message parse error:`, error);
     }
@@ -174,24 +177,35 @@ export abstract class BaseExchange {
 
   private handleDisconnection(event: CloseEvent, marketType: MarketType): void {
     this.updateConnectionStatus(marketType, 'disconnected');
-    
-    if (!event.wasClean && (this.reconnectAttempts.get(marketType) || 0) < this.maxReconnectAttempts) {
+
+    if (
+      !event.wasClean &&
+      (this.reconnectAttempts.get(marketType) || 0) < this.maxReconnectAttempts
+    ) {
       this.scheduleReconnect(marketType);
     }
   }
 
   private scheduleReconnect(marketType: MarketType): void {
     if (this.isConnecting.has(marketType)) return;
-    
+
     const currentAttempts = this.reconnectAttempts.get(marketType) || 0;
     this.reconnectAttempts.set(marketType, currentAttempts + 1);
-    
+
     const jitter = Math.random() * 1000;
     const delay = Math.min(this.reconnectDelay * Math.pow(2, currentAttempts) + jitter, 30000);
-    
-    console.log(`${this.exchangeName} ${marketType} reconnecting in ${delay}ms (attempt ${currentAttempts + 1})`);
-    this.updateConnectionStatus(marketType, 'connecting', `Reconnecting... (${currentAttempts + 1}/${this.maxReconnectAttempts})`);
-    
+
+    console.log(
+      `${this.exchangeName} ${marketType} reconnecting in ${delay}ms (attempt ${
+        currentAttempts + 1
+      })`,
+    );
+    this.updateConnectionStatus(
+      marketType,
+      'connecting',
+      `Reconnecting... (${currentAttempts + 1}/${this.maxReconnectAttempts})`,
+    );
+
     setTimeout(async () => {
       if (this.ticker) {
         try {
@@ -206,54 +220,58 @@ export abstract class BaseExchange {
       }
     }, delay);
   }
-  
+
   private handleConnectionTimeout(marketType: MarketType): void {
     console.warn(`${this.exchangeName} ${marketType} connection timeout`);
     this.updateConnectionStatus(marketType, 'error', 'Connection timeout');
     this.scheduleReconnect(marketType);
   }
-  
+
   private handleError(message: string, error: unknown, marketType: MarketType): void {
     console.error(`${this.exchangeName} ${marketType} error: ${message}`, error);
     this.updateConnectionStatus(marketType, 'error', message);
   }
-  
-  private updateConnectionStatus(marketType: MarketType, status: ConnectionStatus['status'], errorMessage?: string): void {
+
+  private updateConnectionStatus(
+    marketType: MarketType,
+    status: ConnectionStatus['status'],
+    errorMessage?: string,
+  ): void {
     const exchangeKey = marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
-    
+
     const connectionStatus: ConnectionStatus = {
       exchange: exchangeKey,
       ticker: this.ticker,
       status,
       lastUpdate: Date.now(),
       errorMessage,
-      marketType
+      marketType,
     };
-    
+
     this.onStatusUpdate?.(connectionStatus);
   }
 
   public async reconnect(marketTypes: MarketType[] = ['spot']): Promise<void> {
-    const validMarketTypes = marketTypes.filter(type => this.supportedMarkets.includes(type));
-    
+    const validMarketTypes = marketTypes.filter((type) => this.supportedMarkets.includes(type));
+
     for (const marketType of validMarketTypes) {
       if (marketType === 'spot' && this.ws) {
         this.ws.close();
       } else if (marketType === 'futures' && this.futuresWs) {
         this.futuresWs.close();
       }
-      
+
       this.reconnectAttempts.set(marketType, 0);
     }
-    
+
     if (this.ticker) {
       await this.connect(this.ticker, validMarketTypes);
     }
   }
 
   public disconnect(marketTypes: MarketType[] = ['spot', 'futures']): void {
-    const validMarketTypes = marketTypes.filter(type => this.supportedMarkets.includes(type));
-    
+    const validMarketTypes = marketTypes.filter((type) => this.supportedMarkets.includes(type));
+
     for (const marketType of validMarketTypes) {
       if (marketType === 'spot' && this.ws) {
         this.ws.close(1000, 'Manual disconnect');
@@ -274,10 +292,10 @@ export abstract class BaseExchange {
       return this.futuresWs?.readyState === WebSocket.OPEN;
     }
   }
-  
+
   protected sendMessage(message: string, marketType: MarketType = 'spot'): void {
     const ws = marketType === 'spot' ? this.ws : this.futuresWs;
-    
+
     if (ws?.readyState === WebSocket.OPEN) {
       ws.send(message);
     } else {
@@ -288,7 +306,7 @@ export abstract class BaseExchange {
   public getSupportedMarkets(): MarketType[] {
     return [...this.supportedMarkets];
   }
-  
+
   // Callback for status updates
   public onStatusUpdate?: (status: ConnectionStatus) => void;
 }
