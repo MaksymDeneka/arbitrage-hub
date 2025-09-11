@@ -107,7 +107,7 @@ export function ArbitrageMonitor({ ticker }: ArbitrageMonitorProps) {
   
   if (opportunities.length === 0) {
     return (
-      <div className="bg-slate-800 rounded-lg p-6 border border-gray-700">
+      <div className="bg-neutral-800 rounded-lg p-6 border border-neutral-700">
         <div className="text-center">
           <div className="text-4xl mb-2">👀</div>
           <h3 className="text-lg font-medium text-gray-300 mb-1">Watching for Opportunities</h3>
@@ -132,7 +132,7 @@ export function ArbitrageMonitor({ ticker }: ArbitrageMonitorProps) {
             className={`px-3 py-1 rounded text-sm transition-colors ${
               soundEnabled 
                 ? 'bg-green-600 text-white' 
-                : 'bg-gray-600 text-gray-300'
+                : 'bg-neutral-600 text-gray-300'
             }`}
           >
             {soundEnabled ? '🔊' : '🔇'} Sound
@@ -178,7 +178,7 @@ export function ArbitrageMonitor({ ticker }: ArbitrageMonitorProps) {
               </div>
               
               {/* TRADE DETAILS */}
-              <div className="space-y-2 bg-slate-900 rounded-lg p-3">
+              <div className="space-y-2 bg-neutral-900 rounded-lg p-3">
                 <div className="flex justify-between items-center">
                   <div>
                     <div className="text-sm text-gray-400">Buy from</div>
@@ -205,7 +205,7 @@ export function ArbitrageMonitor({ ticker }: ArbitrageMonitorProps) {
               </div>
               
               {/* PROFIT CALCULATOR */}
-              <div className="mt-3 pt-3 border-t border-gray-700">
+              <div className="mt-3 pt-3 border-t border-neutral-700">
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
                     <div className="text-xs text-gray-400">$100 investment</div>
@@ -240,7 +240,7 @@ export function ArbitrageMonitor({ ticker }: ArbitrageMonitorProps) {
       </div>
       
       {/* SUMMARY STATS */}
-      <div className="bg-slate-800 rounded-lg p-4 border border-gray-700">
+      <div className="bg-neutral-800 rounded-lg p-4 border border-neutral-700">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
           <div>
             <div className="text-2xl font-bold text-green-400">

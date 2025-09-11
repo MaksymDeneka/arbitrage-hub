@@ -52,7 +52,7 @@ export abstract class BaseExchange {
           this.ws.close();
           this.handleConnectionTimeout();
         }
-      }, 10000); // 10 second timeout
+      }, 5000); // 5 second timeout
       
     } catch (error) {
       this.handleError('Connection failed', error);

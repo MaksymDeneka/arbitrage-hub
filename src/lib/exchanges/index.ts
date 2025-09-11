@@ -4,9 +4,13 @@ import { BinanceExchange, BinanceFuturesExchange } from './binance';
 export const SUPPORTED_EXCHANGES = {
   //Spot exchanges
   'binance': BinanceExchange,
-  
   //Futures exchanges
   'binance-futures': BinanceFuturesExchange,
+
+  //Spot
+  'mexc': MexcExchange,
+  //Futures
+  'mexc-futures': MexcFuturesExchange,
 
 } as const;
 
@@ -45,11 +49,11 @@ export class ExchangeFactory {
   
   //get spot exchanges only
   static getSpotExchanges(): string[] {
-    return ['binance', 'okx', 'bybit'];
+    return ['binance', 'mexc', 'okx', 'bybit'];
   }
 
   //get futures exchanges only
   static getFuturesExchanges(): string[] {
-    return ['binance-futures', 'okx-futures', 'bybit-futures'];
+    return ['binance-futures', 'mexc', 'okx-futures', 'bybit-futures'];
   }
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { TokenConfig } from "@/lib/types";
 import { dexPriceFetcher } from "@/lib/dex/price-fetcher";
 import { ExchangeFactory } from "@/lib/exchanges";
+import { redirect } from "next/navigation";
 
 interface AddTokenFormProps {
   onSubmit: (config: TokenConfig) => Promise<void>;
@@ -51,6 +52,8 @@ export function AddTokenForm({ onSubmit, isLoading }: AddTokenFormProps) {
     
     await onSubmit(config);
     
+		redirect('/hub')
+
     //reset form
     setTicker('');
     setSelectedExchanges([]);
@@ -86,7 +89,7 @@ export function AddTokenForm({ onSubmit, isLoading }: AddTokenFormProps) {
           value={ticker}
           onChange={(e) => setTicker(e.target.value)}
           placeholder="e.g. DAM, PEPE, etc."
-          className="w-full px-3 py-2 bg-slate-800 border border-gray-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+          className="w-full px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-md text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
           disabled={isLoading}
           autoComplete="off"
         />
@@ -105,7 +108,7 @@ export function AddTokenForm({ onSubmit, isLoading }: AddTokenFormProps) {
                 checked={selectedExchanges.includes(exchange)}
                 onChange={() => handleExchangeToggle(exchange)}
                 disabled={isLoading}
-                className="rounded border-gray-600 text-green-600 focus:ring-green-500 focus:ring-offset-0 bg-slate-800"
+                className="rounded border-neutral-600 text-green-600 focus:ring-green-500 focus:ring-offset-0 bg-neutral-800"
               />
               <span className="text-sm text-gray-300 capitalize">{exchange}</span>
             </label>
@@ -130,13 +133,13 @@ export function AddTokenForm({ onSubmit, isLoading }: AddTokenFormProps) {
                 value={dexContracts[chain as keyof typeof dexContracts] || ''}
                 onChange={(e) => handleDexContractChange(chain, e.target.value)}
                 placeholder={`0x${chain === 'eth' ? 'ethereum' : chain} contract address`}
-                className="w-full px-3 py-2 bg-slate-800 border border-gray-600 rounded-md text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                className="w-full px-3 py-2 bg-neutral-800 border border-neutral-600 rounded-md text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-neutral-500 focus:border-transparent font-mono"
                 disabled={isLoading}
               />
             </div>
           ))}
         </div>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-neutral-500 mt-1">
           Enter Uniswap V2 style pair contract addresses for DEX price monitoring
         </p>
       </div>
@@ -156,7 +159,7 @@ export function AddTokenForm({ onSubmit, isLoading }: AddTokenFormProps) {
             value={thresholdPercent}
             onChange={(e) => setThresholdPercent(parseFloat(e.target.value))}
             disabled={isLoading}
-            className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
+            className="flex-1 h-2 bg-neutral-700 rounded-lg appearance-none cursor-pointer slider"
           />
           <input
             type="number"
@@ -166,11 +169,11 @@ export function AddTokenForm({ onSubmit, isLoading }: AddTokenFormProps) {
             value={thresholdPercent}
             onChange={(e) => setThresholdPercent(parseFloat(e.target.value) || 1)}
             disabled={isLoading}
-            className="w-20 px-2 py-1 bg-slate-800 border border-gray-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-20 px-2 py-1 bg-neutral-800 border border-neutral-600 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
           />
           <span className="text-sm text-gray-400">%</span>
         </div>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-neutral-500 mt-1">
           Minimum spread percentage to trigger arbitrage alerts
         </p>
       </div>
@@ -179,7 +182,7 @@ export function AddTokenForm({ onSubmit, isLoading }: AddTokenFormProps) {
       <button
         type="submit"
         disabled={isLoading || !ticker.trim()}
-        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-slate-900"
+        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-neutral-600 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-neutral-900"
       >
         {isLoading ? (
           <div className="flex items-center justify-center space-x-2">
@@ -192,16 +195,16 @@ export function AddTokenForm({ onSubmit, isLoading }: AddTokenFormProps) {
       </button>
       
       {/* FORM VALIDATION SUMMARY */}
-      <div className="text-xs text-gray-500 space-y-1">
+      <div className="text-xs text-neutral-500 space-y-1">
         <div className="flex items-center space-x-2">
-          <div className={`w-2 h-2 rounded-full ${ticker.trim() ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+          <div className={`w-2 h-2 rounded-full ${ticker.trim() ? 'bg-green-500' : 'bg-neutral-500'}`}></div>
           <span>Ticker symbol entered</span>
         </div>
         <div className="flex items-center space-x-2">
           <div className={`w-2 h-2 rounded-full ${
             selectedExchanges.length > 0 || Object.values(dexContracts).some(c => c.trim()) 
               ? 'bg-green-500' 
-              : 'bg-gray-500'
+              : 'bg-neutral-500'
           }`}></div>
           <span>At least one exchange or DEX contract selected</span>
         </div>
@@ -217,20 +220,20 @@ const sliderStyles = `
   height: 20px;
   width: 20px;
   border-radius: 50%;
-  background: #10b981;
+  background: #737373;
   cursor: pointer;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px #10b981;
+  box-shadow: 0 0 0 1px #fff;
 }
 
 .slider::-moz-range-thumb {
   height: 20px;
   width: 20px;
   border-radius: 50%;
-  background: #10b981;
+  background: #737373;
   cursor: pointer;
   border: 2px solid #ffffff;
-  box-shadow: 0 0 0 1px #10b981;
+  box-shadow: 0 0 0 1px #fff;
 }
 `;
 

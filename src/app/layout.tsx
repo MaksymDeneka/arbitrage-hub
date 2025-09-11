@@ -32,25 +32,19 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://ws.okx.com" />
         <link rel="dns-prefetch" href="https://stream.bybit.com" />
       </head>
-      <body className={`${inter.variable} antialiased bg-black text-white min-h-screen`}>
+      <body className={`${inter.variable} antialiased text-white min-h-screen`}>
         <div className="container mx-auto px-4 py-6">
           {/* HEADER */}
           <header className="mb-8">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-neutral-700 to-neutral-300 bg-clip-text text-transparent">
               Crypto Arbitrage Hub
             </h1>
-            <p className="text-gray-400 mt-2">
+            <p className="text-neutral-500 mt-2">
               Real time arbitrage monitoring across exchanges and DEX platforms
             </p>
           </header>
-
           {/* MAIN CONTENT */}
           <main>{children}</main>
-
-          {/* FOOTER */}
-          <footer className="mt-12 pt-8 border-t border-gray-800 text-center text-gray-500 text-sm">
-            <p>foo</p>
-          </footer>
         </div>
       </body>
     </html>

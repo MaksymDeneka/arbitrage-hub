@@ -97,13 +97,13 @@ export function Dashboard() {
   return (
     <div className="space-y-8">
       {/* CONTROL PANEL */}
-      <div className="bg-slate-900 rounded-lg p-6 border border-gray-700">
+      <div className="bg-neutral-900 rounded-lg p-6 border border-neutral-700">
         <h2 className="text-xl font-semibold mb-4 text-green-400">Add New Token</h2>
         <AddTokenForm onSubmit={handleAddToken} isLoading={isLoading} />
         
         {/* EMERGENCY CONTROLS */}
         {monitoringTokens.length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-700 flex justify-between items-center">
+          <div className="mt-4 pt-4 border-t border-neutral-700 flex justify-between items-center">
             <div className="text-sm text-gray-400">
               Monitoring {monitoringTokens.length} token{monitoringTokens.length !== 1 ? 's' : ''}
             </div>
@@ -127,9 +127,9 @@ export function Dashboard() {
       ) : (
         <div className="space-y-6">
           {monitoringTokens.map((token) => (
-            <div key={token.id} className="bg-slate-900 rounded-lg border border-gray-700 overflow-hidden">
+            <div key={token.id} className="bg-neutral-900 rounded-lg border border-neutral-700 overflow-hidden">
               {/* TOKEN HEADER */}
-              <div className="bg-slate-800 px-6 py-4 border-b border-gray-700">
+              <div className="bg-neutral-800 px-6 py-4 border-b border-neutral-700">
                 <div className="flex justify-between items-center">
                   <div>
                     <h3 className="text-2xl font-bold text-white">
@@ -194,7 +194,7 @@ export function Dashboard() {
       
       {/* PERFORMANCE STATS */}
       {monitoringTokens.length > 0 && (
-        <div className="bg-slate-900 rounded-lg p-4 border border-gray-700">
+        <div className="bg-neutral-900 rounded-lg p-4 border border-neutral-700">
           <h4 className="text-sm font-medium text-gray-300 mb-2">Performance Stats</h4>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
