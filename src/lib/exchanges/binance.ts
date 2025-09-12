@@ -65,6 +65,10 @@ export class BinanceExchange extends BaseExchange {
 
   parseMessage(data: any, marketType: MarketType): PriceData | null {
     try {
+      console.log(
+        `[Binance] (${marketType}) Parsing message type: ${JSON.stringify(data).slice(0, 150)}`,
+      );
+
       // support combined-stream wrapper { stream, data }
       if (data && typeof data === 'object' && 'data' in data && 'stream' in data) {
         return this.parseMessage((data as any).data, marketType);

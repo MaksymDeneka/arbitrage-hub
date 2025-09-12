@@ -114,6 +114,12 @@ export abstract class BaseExchange {
         this.futuresWs!.onclose = this.onFuturesCloseBound;
         this.futuresWs!.onerror = this.onFuturesErrorBound;
       }
+      ////////
+      console.log(`[${this.exchangeName}] (${marketType}) Connecting to ${url}`);
+      console.log(
+        `[${this.exchangeName}] (${marketType}) setupWebSocket called for ticker=${ticker}. Current ws state:`,
+        marketType === 'spot' ? this.ws?.readyState : this.futuresWs?.readyState,
+      );
 
       setTimeout(() => {
         const websocket = this[ws];
@@ -173,6 +179,10 @@ export abstract class BaseExchange {
 
     this.flushOutgoingQueue(marketType);
 
+    console.log(
+      `[${this.exchangeName}] (${marketType}) Connection established. Flushing queue + subscribing`,
+    );
+
     try {
       this.subscribe(this.ticker, marketType);
     } catch (err) {
@@ -185,6 +195,10 @@ export abstract class BaseExchange {
   private handleMessage(event: MessageEvent, marketType: MarketType): void {
     try {
       const raw = JSON.parse(event.data);
+      console.log(
+        `[${this.exchangeName}] (${marketType}) << Incoming message:`,
+        JSON.stringify(raw).slice(0, 200),
+      );
 
       // Auto-ping handling
       if (this.handlePing(raw, marketType)) return;
@@ -248,6 +262,12 @@ export abstract class BaseExchange {
     const delay = Math.min(this.reconnectDelay * Math.pow(2, currentAttempts) + jitter, 30000);
 
     console.log(
+      `[${this.exchangeName}] (${marketType}) Scheduling reconnect in ${
+        delay / 1000
+      }s (attempt ${currentAttempts})`,
+    );
+
+    console.log(
       `${this.exchangeName} ${marketType} reconnecting in ${delay}ms (attempt ${
         currentAttempts + 1
       })`,
@@ -305,6 +325,9 @@ export abstract class BaseExchange {
 
   protected flushOutgoingQueue(marketType: MarketType) {
     const queue = this.outgoingQueues.get(marketType) || [];
+
+    console.log(`[${this.exchangeName}] (${marketType}) Flushing ${queue.length} queued messages`);
+
     const ws = marketType === 'spot' ? this.ws : this.futuresWs;
     while (queue.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
       const msg = queue.shift()!;
@@ -321,6 +344,8 @@ export abstract class BaseExchange {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected handlePing(raw: any, marketType: MarketType) {
+    console.log(`[${this.exchangeName}] (${marketType}) Received PING, replying with PONG`);
+
     if (this.autoPong && raw && typeof raw === 'object') {
       if ('ping' in raw) {
         const pongMsg = JSON.stringify({ pong: raw.ping });
@@ -380,6 +405,12 @@ export abstract class BaseExchange {
 
   protected sendMessage(message: string, marketType: MarketType = 'spot'): void {
     const ws = marketType === 'spot' ? this.ws : this.futuresWs;
+
+    if (ws?.readyState === WebSocket.OPEN) {
+      console.log(`[${this.exchangeName}] (${marketType}) >> Sent message: ${message}`);
+    } else {
+      console.log(`[${this.exchangeName}] (${marketType}) Queued message: ${message}`);
+    }
 
     if (ws?.readyState === WebSocket.OPEN) {
       try {

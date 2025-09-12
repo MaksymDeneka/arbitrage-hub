@@ -78,6 +78,7 @@ export class MEXCExchange extends BaseExchange {
       const bidPrice = parseFloat(tickerData.b);
       const askPrice = parseFloat(tickerData.a);
       const midPrice = (bidPrice + askPrice) / 2;
+			console.log(`[MEXC] SPOT Parsed update:`, midPrice);
 
       return {
         exchange: 'mexc',
@@ -111,6 +112,8 @@ export class MEXCExchange extends BaseExchange {
     if (data.channel === 'push.ticker') {
       const tickerData = data.data;
       if (!tickerData) return null;
+			
+			console.log(`[MEXC] FUTURES Parsed update:`, parseFloat(tickerData.lastPrice));
 
       return {
         exchange: 'mexc-futures',
