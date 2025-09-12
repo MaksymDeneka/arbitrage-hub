@@ -44,14 +44,14 @@ export class MEXCExchange extends BaseExchange {
 
   async connectSpot(ticker: string): Promise<void> {
     // const symbol = `${ticker.toUpperCase()}USDT`;
-    const wsUrl = `wss://wbs.mexc.com/ws`;
+    const wsUrl = `wss://wbs-api.mexc.com/ws`;
 
     console.log(`🔗 Connecting to MEXC SPOT: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'spot');
   }
 
   async connectFutures(ticker: string): Promise<void> {
-    const wsUrl = `wss://contract.mexc.com/ws`;
+    const wsUrl = `wss://contract.mexc.com/edge`;
 
     console.log(`🔗 Connecting to MEXC FUTURES: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'futures');
@@ -71,14 +71,14 @@ export class MEXCExchange extends BaseExchange {
   }
 
   private parseSpotMessage(data: any): PriceData | null {
-    if (data.c === 'spot@public.bookTicker.v3.api') {
+    if (data.channel === 'spot@public.ticker.v3.api') {
       const tickerData = data.d;
       if (!tickerData) return null;
 
       const bidPrice = parseFloat(tickerData.b);
       const askPrice = parseFloat(tickerData.a);
       const midPrice = (bidPrice + askPrice) / 2;
-			console.log(`[MEXC] SPOT Parsed update:`, midPrice);
+      console.log(`[MEXC] SPOT Parsed update:`, midPrice);
 
       return {
         exchange: 'mexc',
@@ -89,6 +89,24 @@ export class MEXCExchange extends BaseExchange {
         volume: parseFloat(tickerData.v || '0'),
       };
     }
+    // if (data.c === 'spot@public.aggre.bookTicker.v3.api.pb@100ms') {
+    //   const tickerData = data.d;
+    //   if (!tickerData) return null;
+
+    //   const bidPrice = parseFloat(tickerData.b);
+    //   const askPrice = parseFloat(tickerData.a);
+    //   const midPrice = (bidPrice + askPrice) / 2;
+    //   console.log(`[MEXC] SPOT Parsed update:`, midPrice);
+
+    //   return {
+    //     exchange: 'mexc',
+    //     symbol: tickerData.s,
+    //     price: midPrice,
+    //     timestamp: tickerData.t || Date.now(),
+    //     type: 'spot',
+    //     volume: parseFloat(tickerData.v || '0'),
+    //   };
+    // }
 
     if (data.c === 'spot@public.deals.v3.api') {
       const dealData = data.d;
@@ -112,8 +130,8 @@ export class MEXCExchange extends BaseExchange {
     if (data.channel === 'push.ticker') {
       const tickerData = data.data;
       if (!tickerData) return null;
-			
-			console.log(`[MEXC] FUTURES Parsed update:`, parseFloat(tickerData.lastPrice));
+
+      console.log(`[MEXC] FUTURES last price:`, parseFloat(tickerData.lastPrice));
 
       return {
         exchange: 'mexc-futures',
@@ -155,18 +173,18 @@ export class MEXCExchange extends BaseExchange {
 
     if (marketType === 'spot') {
       // Subscribe to spot book ticker and deals
-      this.sendMessage(
-        JSON.stringify({
-          method: 'SUBSCRIPTION',
-          params: [`spot@public.bookTicker.v3.api@${symbol}`],
-        }),
-        'spot',
-      );
+      // this.sendMessage(
+      //   JSON.stringify({
+      //     method: 'SUBSCRIPTION',
+      //     params: [`spot@public.ticker.v3.api@${symbol}`],
+      //   }),
+      //   'spot',
+      // );
 
       this.sendMessage(
         JSON.stringify({
           method: 'SUBSCRIPTION',
-          params: [`spot@public.deals.v3.api@${symbol}`],
+          params: [`spot@public.deals.v3.api@@${symbol}`],
         }),
         'spot',
       );
@@ -180,13 +198,13 @@ export class MEXCExchange extends BaseExchange {
         'futures',
       );
 
-      this.sendMessage(
-        JSON.stringify({
-          method: 'sub.depth',
-          param: { symbol, limit: 20 },
-        }),
-        'futures',
-      );
+      // this.sendMessage(
+      //   JSON.stringify({
+      //     method: 'sub.depth',
+      //     param: { symbol, limit: 20 },
+      //   }),
+      //   'futures',
+      // );
     }
 
     console.log(`Subscribed to MEXC ${marketType.toUpperCase()} streams for ${ticker}`);

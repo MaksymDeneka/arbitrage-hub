@@ -44,7 +44,10 @@ export class BinanceExchange extends BaseExchange {
   async connectSpot(ticker: string): Promise<void> {
     const symbol = ticker.toLowerCase();
 
-    const streams = [`${symbol}usdt@ticker`, `${symbol}usdt@bookTicker`];
+    const streams = [
+      `${symbol}usdt@ticker`,
+      //  `${symbol}usdt@bookTicker`
+    ];
 
     const wsUrl = `wss://stream.binance.com:9443/ws/${streams.join('/')}`;
 
@@ -55,7 +58,10 @@ export class BinanceExchange extends BaseExchange {
   async connectFutures(ticker: string): Promise<void> {
     const symbol = ticker.toLowerCase();
 
-    const streams = [`${symbol}usdt@ticker`, `${symbol}usdt@bookTicker`];
+    const streams = [
+      `${symbol}usdt@ticker`,
+      //  `${symbol}usdt@bookTicker`
+    ];
 
     const wsUrl = `wss://fstream.binance.com/ws/${streams.join('/')}`;
 
