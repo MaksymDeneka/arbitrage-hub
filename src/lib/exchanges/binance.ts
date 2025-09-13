@@ -69,41 +69,29 @@ export class BinanceExchange extends BaseExchange {
     this.setupWebSocket(wsUrl, ticker, 'futures');
   }
 
-  parseMessage(data: any, marketType: MarketType): PriceData | null {
-    try {
-      console.log(
-        `[Binance] (${marketType}) Parsing message type: ${JSON.stringify(data).slice(0, 150)}`,
-      );
-
-      // support combined-stream wrapper { stream, data }
-      if (data && typeof data === 'object' && 'data' in data && 'stream' in data) {
-        return this.parseMessage((data as any).data, marketType);
-      }
-
-      // Handle individual ticker messages
-      if (data.e === '24hrTicker') {
-        return this.parseTicker(data, marketType);
-      }
-
-      // Handle book ticker (best bid/ask)
-      if (data.e === 'bookTicker') {
-        return this.parseBookTicker(data, marketType);
-      }
-
-      // Handle array of messages (stream response)
-      if (Array.isArray(data)) {
-        for (const item of data) {
-          const parsed = this.parseMessage(item, marketType);
-          if (parsed) return parsed;
-        }
-      }
-
-      return null;
-    } catch (error) {
-      console.warn(`Binance ${marketType} parse error:`, error);
-      return null;
+async parseMessage(data: any, marketType: MarketType): Promise<PriceData | null> {
+  try {
+    if (data && typeof data === 'object' && 'data' in data && 'stream' in data) {
+      return this.parseMessage((data as any).data, marketType);
     }
+    if (data.e === '24hrTicker') {
+      return this.parseTicker(data, marketType);
+    }
+    if (data.e === 'bookTicker') {
+      return this.parseBookTicker(data, marketType);
+    }
+    if (Array.isArray(data)) {
+      for (const item of data) {
+        const parsed = await this.parseMessage(item, marketType);
+        if (parsed) return parsed;
+      }
+    }
+    return null;
+  } catch (error) {
+    console.warn(`Binance ${marketType} parse error:`, error);
+    return null;
   }
+}
 
   private parseTicker(data: BinanceTickerMessage, marketType: MarketType): PriceData {
     return {

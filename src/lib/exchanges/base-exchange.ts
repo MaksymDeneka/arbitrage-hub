@@ -1,3 +1,4 @@
+// lib/exchanges/base-exchange.ts
 import { PriceData, ConnectionStatus, MarketType } from '../types';
 import { priceStore } from '../price-store';
 
@@ -47,7 +48,7 @@ export abstract class BaseExchange {
 
   abstract connectSpot(ticker: string): Promise<void>;
   abstract connectFutures?(ticker: string): Promise<void>;
-  abstract parseMessage(data: unknown, marketType: MarketType): PriceData | null;
+  abstract parseMessage(data: unknown, marketType: MarketType): Promise<PriceData | null>;
   abstract subscribe(ticker: string, marketType: MarketType): void;
   abstract checkTokenListing(ticker: string): Promise<{
     spot: boolean;
@@ -114,7 +115,7 @@ export abstract class BaseExchange {
         this.futuresWs!.onclose = this.onFuturesCloseBound;
         this.futuresWs!.onerror = this.onFuturesErrorBound;
       }
-      ////////
+
       console.log(`[${this.exchangeName}] (${marketType}) Connecting to ${url}`);
       console.log(
         `[${this.exchangeName}] (${marketType}) setupWebSocket called for ticker=${ticker}. Current ws state:`,
@@ -192,34 +193,56 @@ export abstract class BaseExchange {
     this.flushOutgoingQueue(marketType);
   }
 
-  private handleMessage(event: MessageEvent, marketType: MarketType): void {
+  private async handleMessage(event: MessageEvent, marketType: MarketType): Promise<void> {
     try {
-      const raw = JSON.parse(event.data);
-      console.log(
-        `[${this.exchangeName}] (${marketType}) << Incoming message:`,
-        JSON.stringify(raw).slice(0, 200),
-      );
+      let rawData = event.data;
 
-      // Auto-ping handling
-      if (this.handlePing(raw, marketType)) return;
+      if (rawData instanceof Blob) {
+        rawData = await rawData.arrayBuffer();
+      }
 
-      //handler for combined-stream wrapper: { stream: 'x', data: {...} }
-      if (raw && typeof raw === 'object' && 'data' in raw && 'stream' in raw) {
-        // unwrap and parse the inner data
-        const inner = raw.data;
-        const priceUpdate = this.parseMessage(inner, marketType);
-        if (priceUpdate) {
+      // const isBinary = rawData instanceof ArrayBuffer || rawData instanceof Uint8Array;
+
+      const parsedData = rawData;
+      // if (!isBinary) {
+      //   if (typeof rawData === 'string') {
+      //     try {
+      //       parsedData = JSON.parse(rawData);
+      //     } catch {
+      //       parsedData = rawData;
+      //     }
+      //   }
+      // }
+
+			if (
+        parsedData &&
+        typeof parsedData === 'object' &&
+        !(parsedData instanceof ArrayBuffer) &&
+        !(parsedData instanceof Uint8Array)
+      ) {
+        if (this.handlePing(parsedData, marketType)) return;
+      }
+
+      if (
+        parsedData &&
+        typeof parsedData === 'object' &&
+        'data' in parsedData &&
+        ('stream' in parsedData || 'channel' in parsedData)
+      ) {
+        const inner = parsedData.data;
+        // call parseMessage on inner and await
+        const innerResult = await this.parseMessage(inner, marketType);
+        if (innerResult) {
           const exchangeKey =
             marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
-          priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);
+          priceStore.updatePrice(this.ticker, exchangeKey, innerResult);
         }
         return;
       }
 
-      //if server sent an array
-      if (Array.isArray(raw)) {
-        for (const item of raw) {
-          const parsed = this.parseMessage(item, marketType);
+      if (Array.isArray(parsedData)) {
+        for (const item of parsedData) {
+          const parsed = await this.parseMessage(item, marketType);
           if (parsed) {
             const exchangeKey =
               marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
@@ -229,15 +252,15 @@ export abstract class BaseExchange {
         return;
       }
 
-      //default: just parseMessage
-      const priceUpdate = this.parseMessage(raw, marketType);
+
+      const priceUpdate = await this.parseMessage(parsedData, marketType);
       if (priceUpdate) {
         const exchangeKey =
           marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
         priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);
       }
     } catch (error) {
-      console.warn(`${this.exchangeName} ${marketType} message parse error:`, error);
+      console.warn(`${this.exchangeName} ${marketType} message handle error:`, error);
     }
   }
 
@@ -267,11 +290,6 @@ export abstract class BaseExchange {
       }s (attempt ${currentAttempts})`,
     );
 
-    console.log(
-      `${this.exchangeName} ${marketType} reconnecting in ${delay}ms (attempt ${
-        currentAttempts + 1
-      })`,
-    );
     this.updateConnectionStatus(
       marketType,
       'connecting',
@@ -343,16 +361,18 @@ export abstract class BaseExchange {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  protected handlePing(raw: any, marketType: MarketType) {
-    console.log(`[${this.exchangeName}] (${marketType}) Received PING, replying with PONG`);
-
+  protected handlePing(raw: any, marketType: MarketType): boolean {
     if (this.autoPong && raw && typeof raw === 'object') {
       if ('ping' in raw) {
+        console.log(`[${this.exchangeName}] (${marketType}) Received PING, replying with PONG`);
         const pongMsg = JSON.stringify({ pong: raw.ping });
         this.sendMessage(pongMsg, marketType);
         return true;
       }
       if (raw.op === 'ping') {
+        console.log(
+          `[${this.exchangeName}] (${marketType}) Received PING (op), replying with PONG`,
+        );
         const pong = JSON.stringify({ op: 'pong', ts: Date.now() });
         this.sendMessage(pong, marketType);
         return true;
@@ -408,24 +428,17 @@ export abstract class BaseExchange {
 
     if (ws?.readyState === WebSocket.OPEN) {
       console.log(`[${this.exchangeName}] (${marketType}) >> Sent message: ${message}`);
-    } else {
-      console.log(`[${this.exchangeName}] (${marketType}) Queued message: ${message}`);
-    }
-
-    if (ws?.readyState === WebSocket.OPEN) {
       try {
         ws.send(message);
       } catch (err) {
         console.error(`${this.exchangeName} send message error:`, err);
       }
-      return;
+    } else {
+      console.log(`[${this.exchangeName}] (${marketType}) Queued message: ${message}`);
+      const queue = this.outgoingQueues.get(marketType) || [];
+      queue.push(message);
+      this.outgoingQueues.set(marketType, queue);
     }
-
-    // not OPEN -> queue it
-    console.warn(`Queuing message - ${this.exchangeName} ${marketType} not open`);
-    const queue = this.outgoingQueues.get(marketType) || [];
-    queue.push(message);
-    this.outgoingQueues.set(marketType, queue);
   }
 
   public getSupportedMarkets(): MarketType[] {

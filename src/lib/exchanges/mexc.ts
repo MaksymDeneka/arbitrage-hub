@@ -1,11 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BaseExchange } from './base-exchange';
 import { PriceData, MarketType } from '../types';
+import { protobufManager } from '../protobuf/protobuf-manager';
+import { ProtobufDetector } from '../protobuf/protobuf-detector';
 
 export class MEXCExchange extends BaseExchange {
+  private protobufInitialized = false;
+
   constructor() {
     super('mexc', ['spot', 'futures']);
     this.requiresSubscription = { spot: true, futures: true };
+    this.initializeProtobuf();
+  }
+
+  private async initializeProtobuf(): Promise<void> {
+    try {
+      await protobufManager.initialize();
+      this.protobufInitialized = true;
+      console.log('[MEXC] Protobuf support initialized');
+    } catch (error) {
+      console.error('[MEXC] Failed to initialize protobuf:', error);
+      this.protobufInitialized = false;
+    }
   }
 
   async checkTokenListing(ticker: string): Promise<{
@@ -43,24 +59,25 @@ export class MEXCExchange extends BaseExchange {
   }
 
   async connectSpot(ticker: string): Promise<void> {
-    // const symbol = `${ticker.toUpperCase()}USDT`;
-    const wsUrl = `wss://wbs-api.mexc.com/ws`;
+    // MEXC WebSocket endpoint
+    const wsUrl = `wss://wbs.mexc.com/ws`;
 
-    console.log(`🔗 Connecting to MEXC SPOT: ${ticker}`);
+    console.log(`[MEXC] Connecting to SPOT: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'spot');
   }
 
   async connectFutures(ticker: string): Promise<void> {
+    // MEXC Futures WebSocket endpoint
     const wsUrl = `wss://contract.mexc.com/edge`;
 
-    console.log(`🔗 Connecting to MEXC FUTURES: ${ticker}`);
+    console.log(`[MEXC] Connecting to FUTURES: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'futures');
   }
 
-  parseMessage(data: any, marketType: MarketType): PriceData | null {
+  async parseMessage(data: any, marketType: MarketType): Promise<PriceData | null> {
     try {
       if (marketType === 'spot') {
-        return this.parseSpotMessage(data);
+        return await this.parseSpotMessage(data);
       } else {
         return this.parseFuturesMessage(data);
       }
@@ -70,101 +87,123 @@ export class MEXCExchange extends BaseExchange {
     }
   }
 
-  private parseSpotMessage(data: any): PriceData | null {
-    if (data.channel === 'spot@public.ticker.v3.api') {
-      const tickerData = data.d;
-      if (!tickerData) return null;
+  private async parseSpotMessage(data: any): Promise<PriceData | null> {
+    const symbol = `${this.ticker.toUpperCase()}USDT`;
 
-      const bidPrice = parseFloat(tickerData.b);
-      const askPrice = parseFloat(tickerData.a);
-      const midPrice = (bidPrice + askPrice) / 2;
-      console.log(`[MEXC] SPOT Parsed update:`, midPrice);
+    // First, try protobuf if initialized and data looks like protobuf
+    if (this.protobufInitialized && ProtobufDetector.isProtobuf(data)) {
+      console.log('[MEXC] Attempting protobuf parsing for spot data');
 
-      return {
-        exchange: 'mexc',
-        symbol: tickerData.s,
-        price: midPrice,
-        timestamp: tickerData.t || Date.now(),
-        type: 'spot',
-        volume: parseFloat(tickerData.v || '0'),
-      };
+      try {
+        const protobufResult = await protobufManager.handleMEXCMessage(data, symbol);
+        if (protobufResult) {
+          console.log(`[MEXC] Protobuf parsed successfully - Price: ${protobufResult.price}`);
+          console.log(
+            `THIS IS PROTOBUF RESULT |||||||||||||||||||||||||||||||||||||||| ${protobufResult} ||||||||||||||||||||||||||||||||||||||||`,
+          );
+          return protobufResult;
+          // return {
+          //   exchange: 'mexc',
+          //   symbol: symbol,
+          //   price: parseFloat(protobufResult.publicdeals.deallist[0].pric),
+          //   timestamp: Date.now(),
+          //   type: 'spot',
+          //   volume: 0,
+          // };
+        }
+      } catch (error) {
+        console.warn('[MEXC] Protobuf parsing failed:', error);
+      }
     }
-    // if (data.c === 'spot@public.aggre.bookTicker.v3.api.pb@100ms') {
-    //   const tickerData = data.d;
-    //   if (!tickerData) return null;
-
-    //   const bidPrice = parseFloat(tickerData.b);
-    //   const askPrice = parseFloat(tickerData.a);
-    //   const midPrice = (bidPrice + askPrice) / 2;
-    //   console.log(`[MEXC] SPOT Parsed update:`, midPrice);
-
-    //   return {
-    //     exchange: 'mexc',
-    //     symbol: tickerData.s,
-    //     price: midPrice,
-    //     timestamp: tickerData.t || Date.now(),
-    //     type: 'spot',
-    //     volume: parseFloat(tickerData.v || '0'),
-    //   };
-    // }
-
-    if (data.c === 'spot@public.deals.v3.api') {
-      const dealData = data.d;
-      if (!dealData || !dealData.deals || dealData.deals.length === 0) return null;
-
-      const latestDeal = dealData.deals[0];
-      return {
-        exchange: 'mexc',
-        symbol: dealData.s,
-        price: parseFloat(latestDeal.p),
-        timestamp: latestDeal.t || Date.now(),
-        type: 'spot',
-        volume: parseFloat(latestDeal.v || '0'),
-      };
-    }
-
     return null;
+    // return this.parseSpotJsonMessage(data);
+  }
+
+  private parseSpotJsonMessage(data: any): PriceData | null {
+    try {
+      //binary to JSON
+      if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
+        const text = new TextDecoder().decode(data);
+        data = JSON.parse(text);
+      }
+
+      //string to JSON
+      if (typeof data === 'string') {
+        data = JSON.parse(data);
+      }
+
+      // Handle the JSON message formats
+      if (data.c === 'spot@public.deals.v3.api') {
+        const dealData = data.d;
+        if (!dealData || !dealData.deals || dealData.deals.length === 0) return null;
+
+        const latestDeal = dealData.deals[0];
+        console.log(`[MEXC] JSON parsed - Price: ${latestDeal.p}`);
+
+        return {
+          exchange: 'mexc',
+          symbol: dealData.s || `${this.ticker.toUpperCase()}USDT`,
+          price: parseFloat(latestDeal.p),
+          timestamp: latestDeal.t || Date.now(),
+          type: 'spot',
+          volume: parseFloat(latestDeal.v || 0),
+        };
+      }
+      return null;
+    } catch (error) {
+      console.warn('[MEXC] JSON parsing failed:', error);
+      return null;
+    }
   }
 
   private parseFuturesMessage(data: any): PriceData | null {
-    if (data.channel === 'push.ticker') {
-      const tickerData = data.data;
-      if (!tickerData) return null;
+    try {
+      if (typeof data === 'string') {
+        data = JSON.parse(data);
+      }
 
-      console.log(`[MEXC] FUTURES last price:`, parseFloat(tickerData.lastPrice));
+      if (data.channel === 'push.ticker') {
+        const tickerData = data.data;
+        if (!tickerData) return null;
 
-      return {
-        exchange: 'mexc-futures',
-        symbol: tickerData.symbol,
-        price: parseFloat(tickerData.lastPrice),
-        timestamp: tickerData.timestamp || Date.now(),
-        type: 'futures',
-        volume: parseFloat(tickerData.volume || '0'),
-      };
+        console.log(`[MEXC] FUTURES parsed - Price: ${tickerData.lastPrice}`);
+
+        return {
+          exchange: 'mexc-futures',
+          symbol: tickerData.symbol,
+          price: parseFloat(tickerData.lastPrice),
+          timestamp: tickerData.timestamp || Date.now(),
+          type: 'futures',
+          volume: parseFloat(tickerData.volume || '0'),
+        };
+      }
+
+      if (data.channel === 'push.depth') {
+        const depthData = data.data;
+        if (!depthData || !depthData.bids || !depthData.asks) return null;
+
+        const bestBid = depthData.bids[0]?.[0];
+        const bestAsk = depthData.asks[0]?.[0];
+
+        if (!bestBid || !bestAsk) return null;
+
+        const midPrice = (parseFloat(bestBid) + parseFloat(bestAsk)) / 2;
+
+        return {
+          exchange: 'mexc-futures',
+          symbol: depthData.symbol,
+          price: midPrice,
+          timestamp: depthData.timestamp || Date.now(),
+          type: 'futures',
+          volume: 0,
+        };
+      }
+
+      return null;
+    } catch (error) {
+      console.warn('[MEXC] Futures JSON parsing failed:', error);
+      return null;
     }
-
-    if (data.channel === 'push.depth') {
-      const depthData = data.data;
-      if (!depthData || !depthData.bids || !depthData.asks) return null;
-
-      const bestBid = depthData.bids[0]?.[0];
-      const bestAsk = depthData.asks[0]?.[0];
-
-      if (!bestBid || !bestAsk) return null;
-
-      const midPrice = (parseFloat(bestBid) + parseFloat(bestAsk)) / 2;
-
-      return {
-        exchange: 'mexc-futures',
-        symbol: depthData.symbol,
-        price: midPrice,
-        timestamp: depthData.timestamp || Date.now(),
-        type: 'futures',
-        volume: 0,
-      };
-    }
-
-    return null;
   }
 
   subscribe(ticker: string, marketType: MarketType): void {
@@ -172,24 +211,16 @@ export class MEXCExchange extends BaseExchange {
       marketType === 'spot' ? `${ticker.toUpperCase()}USDT` : `${ticker.toUpperCase()}_USDT`;
 
     if (marketType === 'spot') {
-      // Subscribe to spot book ticker and deals
-      // this.sendMessage(
-      //   JSON.stringify({
-      //     method: 'SUBSCRIPTION',
-      //     params: [`spot@public.ticker.v3.api@${symbol}`],
-      //   }),
-      //   'spot',
-      // );
-
       this.sendMessage(
         JSON.stringify({
           method: 'SUBSCRIPTION',
-          params: [`spot@public.deals.v3.api@@${symbol}`],
+          params: [`spot@public.deals.v3.api.pb@${symbol}`],
         }),
         'spot',
       );
+
+      console.log(`[MEXC] Subscribed to protobuf deals stream for ${symbol}`);
     } else {
-      // Subscribe to futures ticker and depth
       this.sendMessage(
         JSON.stringify({
           method: 'sub.ticker',
@@ -198,15 +229,7 @@ export class MEXCExchange extends BaseExchange {
         'futures',
       );
 
-      // this.sendMessage(
-      //   JSON.stringify({
-      //     method: 'sub.depth',
-      //     param: { symbol, limit: 20 },
-      //   }),
-      //   'futures',
-      // );
+      console.log(`[MEXC] Subscribed to futures ticker for ${symbol}`);
     }
-
-    console.log(`Subscribed to MEXC ${marketType.toUpperCase()} streams for ${ticker}`);
   }
 }
