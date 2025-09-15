@@ -5,23 +5,9 @@ import { protobufManager } from '../protobuf/protobuf-manager';
 import { ProtobufDetector } from '../protobuf/protobuf-detector';
 
 export class MEXCExchange extends BaseExchange {
-  private protobufInitialized = false;
-
   constructor() {
     super('mexc', ['spot', 'futures']);
     this.requiresSubscription = { spot: true, futures: true };
-    this.initializeProtobuf();
-  }
-
-  private async initializeProtobuf(): Promise<void> {
-    try {
-      await protobufManager.initialize();
-      this.protobufInitialized = true;
-      console.log('[MEXC] Protobuf support initialized');
-    } catch (error) {
-      console.error('[MEXC] Failed to initialize protobuf:', error);
-      this.protobufInitialized = false;
-    }
   }
 
   async checkTokenListing(ticker: string): Promise<{
@@ -60,7 +46,7 @@ export class MEXCExchange extends BaseExchange {
 
   async connectSpot(ticker: string): Promise<void> {
     // MEXC WebSocket endpoint
-    const wsUrl = `wss://wbs.mexc.com/ws`;
+    const wsUrl = `wss://wbs-api.mexc.com/ws`;
 
     console.log(`[MEXC] Connecting to SPOT: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'spot');
@@ -90,33 +76,30 @@ export class MEXCExchange extends BaseExchange {
   private async parseSpotMessage(data: any): Promise<PriceData | null> {
     const symbol = `${this.ticker.toUpperCase()}USDT`;
 
-    // First, try protobuf if initialized and data looks like protobuf
-    if (this.protobufInitialized && ProtobufDetector.isProtobuf(data)) {
-      console.log('[MEXC] Attempting protobuf parsing for spot data');
+    if (ProtobufDetector.isProtobuf(data)) {
+      const u8 = new Uint8Array(data);
+      console.log(
+        'Raw hex:',
+        Array.from(u8)
+          .map((b) => b.toString(16).padStart(2, '0'))
+          .join(' '),
+      );
 
-      try {
-        const protobufResult = await protobufManager.handleMEXCMessage(data, symbol);
-        if (protobufResult) {
-          console.log(`[MEXC] Protobuf parsed successfully - Price: ${protobufResult.price}`);
-          console.log(
-            `THIS IS PROTOBUF RESULT |||||||||||||||||||||||||||||||||||||||| ${protobufResult} ||||||||||||||||||||||||||||||||||||||||`,
-          );
-          return protobufResult;
-          // return {
-          //   exchange: 'mexc',
-          //   symbol: symbol,
-          //   price: parseFloat(protobufResult.publicdeals.deallist[0].pric),
-          //   timestamp: Date.now(),
-          //   type: 'spot',
-          //   volume: 0,
-          // };
-        }
-      } catch (error) {
-        console.warn('[MEXC] Protobuf parsing failed:', error);
-      }
+      const deal = protobufManager.handleMEXCMessage(data);
+      console.log(`[MEXC] SPOT parsed - Price: ${deal?.price}`);
+      if (deal)
+        return {
+          exchange: 'mexc',
+          symbol: symbol,
+          price: parseFloat(deal.price || '0'),
+          timestamp: Date.now(),
+          type: 'spot',
+        };
     }
-    return null;
+
+    //fallback: JSON
     // return this.parseSpotJsonMessage(data);
+    return null;
   }
 
   private parseSpotJsonMessage(data: any): PriceData | null {
@@ -214,7 +197,7 @@ export class MEXCExchange extends BaseExchange {
       this.sendMessage(
         JSON.stringify({
           method: 'SUBSCRIPTION',
-          params: [`spot@public.deals.v3.api.pb@${symbol}`],
+          params: [`spot@public.aggre.deals.v3.api.pb@100ms@${symbol}`],
         }),
         'spot',
       );

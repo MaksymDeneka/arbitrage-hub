@@ -26,9 +26,6 @@ importers:
       next:
         specifier: 15.4.6
         version: 15.4.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      protobufjs:
-        specifier: ^7.5.4
-        version: 7.5.4
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -69,6 +66,9 @@ importers:
       eslint-config-next:
         specifier: 15.4.6
         version: 15.4.6(eslint@9.35.0(jiti@2.5.1))(typescript@5.9.2)
+      protobufjs:
+        specifier: ^7.5.4
+        version: 7.5.4
       tailwindcss:
         specifier: ^4
         version: 4.1.13

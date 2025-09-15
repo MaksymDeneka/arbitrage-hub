@@ -196,7 +196,7 @@ export abstract class BaseExchange {
   private async handleMessage(event: MessageEvent, marketType: MarketType): Promise<void> {
     try {
       let rawData = event.data;
-
+      console.log(rawData);
       if (rawData instanceof Blob) {
         rawData = await rawData.arrayBuffer();
       }
@@ -214,12 +214,13 @@ export abstract class BaseExchange {
       //   }
       // }
 
-			if (
+      if (
         parsedData &&
         typeof parsedData === 'object' &&
         !(parsedData instanceof ArrayBuffer) &&
         !(parsedData instanceof Uint8Array)
       ) {
+        console.log(`PONG`);
         if (this.handlePing(parsedData, marketType)) return;
       }
 
@@ -229,6 +230,7 @@ export abstract class BaseExchange {
         'data' in parsedData &&
         ('stream' in parsedData || 'channel' in parsedData)
       ) {
+        console.log(`THE FIRST OPTION`);
         const inner = parsedData.data;
         // call parseMessage on inner and await
         const innerResult = await this.parseMessage(inner, marketType);
@@ -241,6 +243,8 @@ export abstract class BaseExchange {
       }
 
       if (Array.isArray(parsedData)) {
+        console.log(`SECOND OPTION`);
+
         for (const item of parsedData) {
           const parsed = await this.parseMessage(item, marketType);
           if (parsed) {
@@ -252,11 +256,13 @@ export abstract class BaseExchange {
         return;
       }
 
-
       const priceUpdate = await this.parseMessage(parsedData, marketType);
       if (priceUpdate) {
         const exchangeKey =
           marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
+        console.log(`THE THIRD OPTION`);
+        console.log(`PRICE UPDATE KEY: ${exchangeKey}`);
+
         priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);
       }
     } catch (error) {

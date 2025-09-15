@@ -1,58 +1,24 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { MEXCProtobufDecoder } from './protobuf-decoder';
-import { ProtobufDetector } from './protobuf-detector';
-import { PriceData } from '../types';
+import { decodePushDataV3ApiWrapper, PushDataV3ApiWrapper } from '@/lib/protobuf/push-wrapper';
 
-export class ProtobufManager {
-  private mexcDecoder = new MEXCProtobufDecoder();
-  private initialized = false;
-
-  async initialize(): Promise<void> {
-    if (this.initialized) return;
-    
+class ProtobufManager {
+  handleMEXCMessage(input: ArrayBuffer | Uint8Array) {
     try {
-      await this.mexcDecoder.initialize();
-      this.initialized = true;
-      console.log('[ProtobufManager] Initialized successfully');
-    } catch (error) {
-      console.error('[ProtobufManager] Initialization failed:', error);
-      throw error;
-    }
-  }
+      const u8 = input instanceof Uint8Array ? input : new Uint8Array(input);
+      const wrapper: PushDataV3ApiWrapper = decodePushDataV3ApiWrapper(u8);
 
-  async handleMEXCMessage(data: any, symbol: string): Promise<PriceData | null> {
-    if (!this.initialized) {
-      await this.initialize();
-    }
+      if (wrapper.publicAggreDeals?.deals?.length) {
+        const firstDeal = wrapper.publicAggreDeals.deals[0];
+        console.log('Price:', firstDeal.price, 'Quantity:', firstDeal.quantity);
+        return firstDeal;
+      }
 
-    //сheck whether it is protobuf data
-    if (!ProtobufDetector.isProtobuf(data)) {
+      console.warn('Wrapper decoded but no deals field:', wrapper);
+      console.warn(`inside of wrapper ${wrapper.publicAggreDeals?.deals}`);
+      return null;
+    } catch (err) {
+      console.error('Failed to decode wrapper:', err);
       return null;
     }
-
-    //convert to Uint8Array
-    const uint8Array = ProtobufDetector.toUint8Array(data);
-    if (!uint8Array) {
-      console.warn('[MEXC] Could not convert data to Uint8Array');
-      return null;
-    }
-
-    const priceData = await this.mexcDecoder.decodeDealsMessage(uint8Array);
-    
-    if (priceData) {
-      priceData.symbol = symbol;
-    }
-
-    return priceData;
-  }
-
-  isValidMEXCProtobuf(data: any): boolean {
-    if (!this.initialized) return false;
-    
-    const uint8Array = ProtobufDetector.toUint8Array(data);
-    if (!uint8Array) return false;
-
-    return this.mexcDecoder.isValidProtobufMessage(uint8Array);
   }
 }
 
