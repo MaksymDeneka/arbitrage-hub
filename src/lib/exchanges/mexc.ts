@@ -2,7 +2,6 @@
 import { BaseExchange } from './base-exchange';
 import { PriceData, MarketType } from '../types';
 import { protobufManager } from '../protobuf/protobuf-manager';
-import { ProtobufDetector } from '../protobuf/protobuf-detector';
 
 export class MEXCExchange extends BaseExchange {
   constructor() {
@@ -45,25 +44,19 @@ export class MEXCExchange extends BaseExchange {
   }
 
   async connectSpot(ticker: string): Promise<void> {
-    // MEXC WebSocket endpoint
     const wsUrl = `wss://wbs-api.mexc.com/ws`;
-
-    console.log(`[MEXC] Connecting to SPOT: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'spot');
   }
 
   async connectFutures(ticker: string): Promise<void> {
-    // MEXC Futures WebSocket endpoint
     const wsUrl = `wss://contract.mexc.com/edge`;
-
-    console.log(`[MEXC] Connecting to FUTURES: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'futures');
   }
 
-  async parseMessage(data: any, marketType: MarketType): Promise<PriceData | null> {
+  parseMessage(data: any, marketType: MarketType): PriceData | null {
     try {
       if (marketType === 'spot') {
-        return await this.parseSpotMessage(data);
+        return this.parseSpotMessage(data);
       } else {
         return this.parseFuturesMessage(data);
       }
@@ -73,70 +66,20 @@ export class MEXCExchange extends BaseExchange {
     }
   }
 
-  private async parseSpotMessage(data: any): Promise<PriceData | null> {
+  private parseSpotMessage(data: any): PriceData | null {
     const symbol = `${this.ticker.toUpperCase()}USDT`;
-
-    if (ProtobufDetector.isProtobuf(data)) {
-      const u8 = new Uint8Array(data);
-      console.log(
-        'Raw hex:',
-        Array.from(u8)
-          .map((b) => b.toString(16).padStart(2, '0'))
-          .join(' '),
-      );
-
-      const deal = protobufManager.handleMEXCMessage(data);
-      console.log(`[MEXC] SPOT parsed - Price: ${deal?.price}`);
-      if (deal)
-        return {
-          exchange: 'mexc',
-          symbol: symbol,
-          price: parseFloat(deal.price || '0'),
-          timestamp: Date.now(),
-          type: 'spot',
-        };
+    const deal = protobufManager.handleMEXCMessage(data);
+    if (deal) {
+      console.log(`[MEXC] SPOT price: ${deal.price}`);
+      return {
+        exchange: 'mexc',
+        symbol: symbol,
+        price: parseFloat(deal.price || '0'),
+        timestamp: Date.now(),
+        type: 'spot',
+      };
     }
-
-    //fallback: JSON
-    // return this.parseSpotJsonMessage(data);
     return null;
-  }
-
-  private parseSpotJsonMessage(data: any): PriceData | null {
-    try {
-      //binary to JSON
-      if (data instanceof ArrayBuffer || data instanceof Uint8Array) {
-        const text = new TextDecoder().decode(data);
-        data = JSON.parse(text);
-      }
-
-      //string to JSON
-      if (typeof data === 'string') {
-        data = JSON.parse(data);
-      }
-
-      // Handle the JSON message formats
-      if (data.c === 'spot@public.deals.v3.api') {
-        const dealData = data.d;
-        if (!dealData || !dealData.deals || dealData.deals.length === 0) return null;
-
-        const latestDeal = dealData.deals[0];
-        console.log(`[MEXC] JSON parsed - Price: ${latestDeal.p}`);
-
-        return {
-          exchange: 'mexc',
-          symbol: dealData.s || `${this.ticker.toUpperCase()}USDT`,
-          price: parseFloat(latestDeal.p),
-          timestamp: latestDeal.t || Date.now(),
-          type: 'spot',
-          volume: parseFloat(latestDeal.v || 0),
-        };
-      }
-      return null;
-    } catch (error) {
-      console.warn('[MEXC] JSON parsing failed:', error);
-      return null;
-    }
   }
 
   private parseFuturesMessage(data: any): PriceData | null {
@@ -148,9 +91,7 @@ export class MEXCExchange extends BaseExchange {
       if (data.channel === 'push.ticker') {
         const tickerData = data.data;
         if (!tickerData) return null;
-
-        console.log(`[MEXC] FUTURES parsed - Price: ${tickerData.lastPrice}`);
-
+        console.log(`[MEXC] Futures price: ${tickerData.lastPrice}`);
         return {
           exchange: 'mexc-futures',
           symbol: tickerData.symbol,
@@ -198,6 +139,7 @@ export class MEXCExchange extends BaseExchange {
         JSON.stringify({
           method: 'SUBSCRIPTION',
           params: [`spot@public.aggre.deals.v3.api.pb@100ms@${symbol}`],
+          // params: [`spot@public.aggre.bookTicker.v3.api.pb@100ms@${symbol}`],
         }),
         'spot',
       );

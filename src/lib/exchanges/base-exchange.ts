@@ -48,7 +48,7 @@ export abstract class BaseExchange {
 
   abstract connectSpot(ticker: string): Promise<void>;
   abstract connectFutures?(ticker: string): Promise<void>;
-  abstract parseMessage(data: unknown, marketType: MarketType): Promise<PriceData | null>;
+  abstract parseMessage(data: unknown, marketType: MarketType): PriceData | null;
   abstract subscribe(ticker: string, marketType: MarketType): void;
   abstract checkTokenListing(ticker: string): Promise<{
     spot: boolean;
@@ -116,12 +116,6 @@ export abstract class BaseExchange {
         this.futuresWs!.onerror = this.onFuturesErrorBound;
       }
 
-      console.log(`[${this.exchangeName}] (${marketType}) Connecting to ${url}`);
-      console.log(
-        `[${this.exchangeName}] (${marketType}) setupWebSocket called for ticker=${ticker}. Current ws state:`,
-        marketType === 'spot' ? this.ws?.readyState : this.futuresWs?.readyState,
-      );
-
       setTimeout(() => {
         const websocket = this[ws];
         if (websocket?.readyState === WebSocket.CONNECTING) {
@@ -135,7 +129,7 @@ export abstract class BaseExchange {
   }
 
   private onOpen(): void {
-    console.log(`${this.exchangeName} SPOT connected for ${this.ticker}`);
+    // console.log(`${this.exchangeName} SPOT connected for ${this.ticker}`);
     this.handleConnectionSuccess('spot');
   }
 
@@ -154,7 +148,7 @@ export abstract class BaseExchange {
   }
 
   private onFuturesOpen(): void {
-    console.log(`${this.exchangeName} FUTURES connected for ${this.ticker}`);
+    // console.log(`${this.exchangeName} FUTURES connected for ${this.ticker}`);
     this.handleConnectionSuccess('futures');
   }
 
@@ -178,41 +172,21 @@ export abstract class BaseExchange {
 
     this.updateConnectionStatus(marketType, 'connected');
 
-    this.flushOutgoingQueue(marketType);
-
-    console.log(
-      `[${this.exchangeName}] (${marketType}) Connection established. Flushing queue + subscribing`,
-    );
-
     try {
       this.subscribe(this.ticker, marketType);
     } catch (err) {
       console.error(`${this.exchangeName} subscribe error:`, err);
     }
 
-    this.flushOutgoingQueue(marketType);
+
   }
 
   private async handleMessage(event: MessageEvent, marketType: MarketType): Promise<void> {
     try {
-      let rawData = event.data;
-      console.log(rawData);
-      if (rawData instanceof Blob) {
-        rawData = await rawData.arrayBuffer();
+      let parsedData = event.data;
+      if (parsedData instanceof Blob) {
+        parsedData = await parsedData.arrayBuffer();
       }
-
-      // const isBinary = rawData instanceof ArrayBuffer || rawData instanceof Uint8Array;
-
-      const parsedData = rawData;
-      // if (!isBinary) {
-      //   if (typeof rawData === 'string') {
-      //     try {
-      //       parsedData = JSON.parse(rawData);
-      //     } catch {
-      //       parsedData = rawData;
-      //     }
-      //   }
-      // }
 
       if (
         parsedData &&
@@ -232,8 +206,8 @@ export abstract class BaseExchange {
       ) {
         console.log(`THE FIRST OPTION`);
         const inner = parsedData.data;
-        // call parseMessage on inner and await
-        const innerResult = await this.parseMessage(inner, marketType);
+
+        const innerResult = this.parseMessage(inner, marketType);
         if (innerResult) {
           const exchangeKey =
             marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
@@ -246,7 +220,7 @@ export abstract class BaseExchange {
         console.log(`SECOND OPTION`);
 
         for (const item of parsedData) {
-          const parsed = await this.parseMessage(item, marketType);
+          const parsed = this.parseMessage(item, marketType);
           if (parsed) {
             const exchangeKey =
               marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
@@ -256,12 +230,11 @@ export abstract class BaseExchange {
         return;
       }
 
-      const priceUpdate = await this.parseMessage(parsedData, marketType);
+      const priceUpdate = this.parseMessage(parsedData, marketType);
       if (priceUpdate) {
         const exchangeKey =
           marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
         console.log(`THE THIRD OPTION`);
-        console.log(`PRICE UPDATE KEY: ${exchangeKey}`);
 
         priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);
       }

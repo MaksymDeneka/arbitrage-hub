@@ -44,56 +44,48 @@ export class BinanceExchange extends BaseExchange {
   async connectSpot(ticker: string): Promise<void> {
     const symbol = ticker.toLowerCase();
 
-    const streams = [
-      `${symbol}usdt@ticker`,
-      //  `${symbol}usdt@bookTicker`
-    ];
+    const streams = [`${symbol}usdt@ticker`];
 
     const wsUrl = `wss://stream.binance.com:9443/ws/${streams.join('/')}`;
-
-    console.log(`🔗 Connecting to Binance SPOT: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'spot');
   }
 
   async connectFutures(ticker: string): Promise<void> {
     const symbol = ticker.toLowerCase();
 
-    const streams = [
-      `${symbol}usdt@ticker`,
-      //  `${symbol}usdt@bookTicker`
-    ];
+    const streams = [`${symbol}usdt@ticker`];
 
     const wsUrl = `wss://fstream.binance.com/ws/${streams.join('/')}`;
-
-    console.log(`🔗 Connecting to Binance FUTURES: ${ticker}`);
     this.setupWebSocket(wsUrl, ticker, 'futures');
   }
 
-async parseMessage(data: any, marketType: MarketType): Promise<PriceData | null> {
-  try {
-    if (data && typeof data === 'object' && 'data' in data && 'stream' in data) {
-      return this.parseMessage((data as any).data, marketType);
-    }
-    if (data.e === '24hrTicker') {
-      return this.parseTicker(data, marketType);
-    }
-    if (data.e === 'bookTicker') {
-      return this.parseBookTicker(data, marketType);
-    }
-    if (Array.isArray(data)) {
-      for (const item of data) {
-        const parsed = await this.parseMessage(item, marketType);
-        if (parsed) return parsed;
+  parseMessage(data: any, marketType: MarketType): PriceData | null {
+    try {
+      if (data && typeof data === 'object' && 'data' in data && 'stream' in data) {
+        return this.parseMessage((data as any).data, marketType);
       }
+      if (data.e === '24hrTicker') {
+        return this.parseTicker(data, marketType);
+      }
+      if (data.e === 'bookTicker') {
+        return this.parseBookTicker(data, marketType);
+      }
+      if (Array.isArray(data)) {
+        for (const item of data) {
+          const parsed = this.parseMessage(item, marketType);
+          if (parsed) return parsed;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.warn(`Binance ${marketType} parse error:`, error);
+      return null;
     }
-    return null;
-  } catch (error) {
-    console.warn(`Binance ${marketType} parse error:`, error);
-    return null;
   }
-}
 
   private parseTicker(data: BinanceTickerMessage, marketType: MarketType): PriceData {
+    console.log(`[Binance] 24h ticker price: ${data.c}`);
+
     return {
       exchange: marketType === 'spot' ? 'binance' : 'binance-futures',
       symbol: data.s,
@@ -109,6 +101,8 @@ async parseMessage(data: any, marketType: MarketType): Promise<PriceData | null>
     const askPrice = parseFloat(data.a);
     const midPrice = (bidPrice + askPrice) / 2;
 
+    console.log(`[Binance] Book price: ${midPrice}`);
+
     return {
       exchange: marketType === 'spot' ? 'binance' : 'binance-futures',
       symbol: data.s,
@@ -120,7 +114,6 @@ async parseMessage(data: any, marketType: MarketType): Promise<PriceData | null>
   }
 
   subscribe(ticker: string, marketType: MarketType): void {
-    console.log(`Subscribed to Binance ${marketType.toUpperCase()} streams for ${ticker}`);
-    // No explicit subscription needed for Binance - streams are specified in URL
+    console.log(`[Binance] Subscribed to ${marketType.toUpperCase()} ticker for ${ticker}`);
   }
 }
