@@ -84,9 +84,9 @@ export class MEXCExchange extends BaseExchange {
 
   private parseFuturesMessage(data: any): PriceData | null {
     try {
-      if (typeof data === 'string') {
-        data = JSON.parse(data);
-      }
+      // if (typeof data === 'string') {
+      //   data = JSON.parse(data);
+      // }
 
       if (data.channel === 'push.ticker') {
         const tickerData = data.data;

@@ -13,8 +13,6 @@ export abstract class BaseExchange {
   protected exchangeName = '';
   protected supportedMarkets: MarketType[] = ['spot'];
 
-  protected outgoingQueues: Map<MarketType, string[]> = new Map();
-
   //marking stream/sub connections
   protected requiresSubscription: { [key in MarketType]?: boolean } = {
     spot: false,
@@ -42,7 +40,6 @@ export abstract class BaseExchange {
     //reconnect attempts for each market type
     supportedMarkets.forEach((market) => {
       this.reconnectAttempts.set(market, 0);
-      this.outgoingQueues.set(market, []);
     });
   }
 
@@ -90,8 +87,6 @@ export abstract class BaseExchange {
   }
 
   protected setupWebSocket(url: string, ticker: string, marketType: MarketType = 'spot'): void {
-    if (!this.outgoingQueues.has(marketType)) this.outgoingQueues.set(marketType, []);
-
     const ws = marketType === 'spot' ? 'ws' : 'futuresWs';
 
     if (this[ws] && this[ws]!.readyState === WebSocket.OPEN) {
@@ -177,25 +172,40 @@ export abstract class BaseExchange {
     } catch (err) {
       console.error(`${this.exchangeName} subscribe error:`, err);
     }
-
-
   }
 
   private async handleMessage(event: MessageEvent, marketType: MarketType): Promise<void> {
     try {
-      let parsedData = event.data;
-      if (parsedData instanceof Blob) {
-        parsedData = await parsedData.arrayBuffer();
+      const raw = event.data;
+      let parsedData: unknown = raw;
+
+      if (raw instanceof Blob) {
+        parsedData = await raw.arrayBuffer();
       }
 
-      if (
-        parsedData &&
-        typeof parsedData === 'object' &&
-        !(parsedData instanceof ArrayBuffer) &&
-        !(parsedData instanceof Uint8Array)
-      ) {
-        console.log(`PONG`);
-        if (this.handlePing(parsedData, marketType)) return;
+      if (parsedData instanceof ArrayBuffer || parsedData instanceof Uint8Array) {
+        //pb
+        const priceUpdate = this.parseMessage(parsedData, marketType);
+        if (priceUpdate) {
+          const exchangeKey =
+            marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
+          priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);
+        }
+        return;
+      }
+
+      if (typeof raw === 'string') {
+        try {
+          parsedData = JSON.parse(raw);
+        } catch {
+          console.warn('Failed to parse JSON:', raw);
+          return;
+        }
+      }
+
+      if (this.handlePing(parsedData, marketType)) {
+        console.log('Handled PING → PONG');
+        return;
       }
 
       if (
@@ -204,10 +214,8 @@ export abstract class BaseExchange {
         'data' in parsedData &&
         ('stream' in parsedData || 'channel' in parsedData)
       ) {
-        console.log(`THE FIRST OPTION`);
-        const inner = parsedData.data;
-
-        const innerResult = this.parseMessage(inner, marketType);
+        console.log('THE FIRST OPTION');
+        const innerResult = this.parseMessage(parsedData.data, marketType);
         if (innerResult) {
           const exchangeKey =
             marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
@@ -217,8 +225,7 @@ export abstract class BaseExchange {
       }
 
       if (Array.isArray(parsedData)) {
-        console.log(`SECOND OPTION`);
-
+        console.log('SECOND OPTION');
         for (const item of parsedData) {
           const parsed = this.parseMessage(item, marketType);
           if (parsed) {
@@ -232,10 +239,9 @@ export abstract class BaseExchange {
 
       const priceUpdate = this.parseMessage(parsedData, marketType);
       if (priceUpdate) {
+        console.log('THE THIRD OPTION');
         const exchangeKey =
           marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
-        console.log(`THE THIRD OPTION`);
-
         priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);
       }
     } catch (error) {
@@ -320,25 +326,6 @@ export abstract class BaseExchange {
     this.onStatusUpdate?.(connectionStatus);
   }
 
-  protected flushOutgoingQueue(marketType: MarketType) {
-    const queue = this.outgoingQueues.get(marketType) || [];
-
-    console.log(`[${this.exchangeName}] (${marketType}) Flushing ${queue.length} queued messages`);
-
-    const ws = marketType === 'spot' ? this.ws : this.futuresWs;
-    while (queue.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
-      const msg = queue.shift()!;
-      try {
-        ws.send(msg);
-      } catch (err) {
-        console.warn(`${this.exchangeName} failed to send queued message:`, err);
-        queue.unshift(msg);
-        break;
-      }
-    }
-    this.outgoingQueues.set(marketType, queue);
-  }
-
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protected handlePing(raw: any, marketType: MarketType): boolean {
     if (this.autoPong && raw && typeof raw === 'object') {
@@ -412,11 +399,6 @@ export abstract class BaseExchange {
       } catch (err) {
         console.error(`${this.exchangeName} send message error:`, err);
       }
-    } else {
-      console.log(`[${this.exchangeName}] (${marketType}) Queued message: ${message}`);
-      const queue = this.outgoingQueues.get(marketType) || [];
-      queue.push(message);
-      this.outgoingQueues.set(marketType, queue);
     }
   }
 

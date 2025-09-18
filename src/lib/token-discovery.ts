@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { BinanceExchange } from "./exchanges/binance";
-import { MEXCExchange } from "./exchanges/mexc";
-import { MarketType, TokenListingInfo } from "./types";
+import { BinanceExchange } from './exchanges/binance';
+import { GateExchange } from './exchanges/gate';
+import { MEXCExchange } from './exchanges/mexc';
+import { MarketType, TokenListingInfo } from './types';
 
 interface ExchangeInstance {
   name: string;
@@ -14,22 +15,27 @@ class TokenDiscoveryService {
     {
       name: 'binance',
       instance: new BinanceExchange(),
-      supportedMarkets: ['spot', 'futures']
+      supportedMarkets: ['spot', 'futures'],
     },
     {
       name: 'mexc',
       instance: new MEXCExchange(),
-      supportedMarkets: ['spot', 'futures']
-    }
+      supportedMarkets: ['spot', 'futures'],
+    },
+    {
+      name: 'gate',
+      instance: new GateExchange(),
+      supportedMarkets: ['spot', 'futures'],
+    },
   ];
 
   async discoverToken(ticker: string): Promise<TokenListingInfo> {
     console.log(`🔍 Discovering listings for ${ticker}...`);
-    
+
     const result: TokenListingInfo = {
       ticker,
       exchanges: {},
-      dexAvailability: {}
+      dexAvailability: {},
     };
 
     // Check all exchanges in parallel
@@ -37,17 +43,16 @@ class TokenDiscoveryService {
       try {
         const listing = await exchange.instance.checkTokenListing(ticker);
         result.exchanges[exchange.name] = listing;
-        
+
         console.log(`${exchange.name}: spot=${listing.spot}, futures=${listing.futures}`);
       } catch (error) {
         console.error(`Failed to check ${exchange.name}:`, error);
         result.exchanges[exchange.name] = {
           spot: false,
-          futures: false
+          futures: false,
         };
       }
     });
-
 
     const dexPromise = this.checkDEXAvailability(ticker);
 
@@ -58,15 +63,14 @@ class TokenDiscoveryService {
     return result;
   }
 
-	// PLACEHOLDER !!!!!!!!!!!! RETURNS FALSE
+  // PLACEHOLDER !!!!!!!!!!!! RETURNS FALSE
   private async checkDEXAvailability(ticker: string): Promise<{ [chain: string]: boolean }> {
     const chains = ['bsc', 'eth', 'polygon', 'arbitrum'];
     const availability: { [chain: string]: boolean } = {};
 
-
     const promises = chains.map(async (chain) => {
       try {
-        availability[chain] = false; 
+        availability[chain] = false;
       } catch (error) {
         console.error(`Failed to check ${chain} for ${ticker}:`, error);
         availability[chain] = false;
@@ -78,24 +82,29 @@ class TokenDiscoveryService {
   }
 
   // Get available exchanges for a ticker with their supported markets
-  async getAvailableExchanges(ticker: string): Promise<{
-    name: string;
-    markets: MarketType[];
-    listed: { spot: boolean; futures: boolean };
-  }[]> {
+  async getAvailableExchanges(ticker: string): Promise<
+    {
+      name: string;
+      markets: MarketType[];
+      listed: { spot: boolean; futures: boolean };
+    }[]
+  > {
     const discovery = await this.discoverToken(ticker);
-    
-    return this.exchanges.map(exchange => ({
-      name: exchange.name,
-      markets: exchange.supportedMarkets,
-      listed: discovery.exchanges[exchange.name] || { spot: false, futures: false }
-    })).filter(exchange => 
-      exchange.listed.spot || exchange.listed.futures
-    );
+
+    return this.exchanges
+      .map((exchange) => ({
+        name: exchange.name,
+        markets: exchange.supportedMarkets,
+        listed: discovery.exchanges[exchange.name] || { spot: false, futures: false },
+      }))
+      .filter((exchange) => exchange.listed.spot || exchange.listed.futures);
   }
 
   // Get recommended configuration based on token availability
-  async getRecommendedConfig(ticker: string, thresholdPercent: number = 1): Promise<{
+  async getRecommendedConfig(
+    ticker: string,
+    thresholdPercent: number = 1,
+  ): Promise<{
     ticker: string;
     exchanges: { name: string; markets: MarketType[] }[];
     dexContracts: { [chain: string]: string | undefined };
@@ -104,23 +113,23 @@ class TokenDiscoveryService {
   }> {
     const discovery = await this.discoverToken(ticker);
     const recommendations: string[] = [];
-    
+
     const exchanges: { name: string; markets: MarketType[] }[] = [];
-    
+
     // Build exchange list based on availability
     for (const [exchangeName, listing] of Object.entries(discovery.exchanges)) {
       const markets: MarketType[] = [];
-      
+
       if (listing.spot) {
         markets.push('spot');
         recommendations.push(`✅ ${exchangeName} spot market available`);
       }
-      
+
       if (listing.futures) {
         markets.push('futures');
         recommendations.push(`✅ ${exchangeName} futures market available`);
       }
-      
+
       if (markets.length > 0) {
         exchanges.push({ name: exchangeName, markets });
       } else {
@@ -141,7 +150,9 @@ class TokenDiscoveryService {
     }
 
     if (exchanges.length === 0) {
-      recommendations.push(`⚠️  No exchanges found for ${ticker}. Please verify the ticker symbol.`);
+      recommendations.push(
+        `⚠️  No exchanges found for ${ticker}. Please verify the ticker symbol.`,
+      );
     }
 
     return {
@@ -149,7 +160,7 @@ class TokenDiscoveryService {
       exchanges,
       dexContracts,
       thresholdPercent,
-      recommendations
+      recommendations,
     };
   }
 
@@ -157,10 +168,8 @@ class TokenDiscoveryService {
   async isTokenListed(ticker: string): Promise<boolean> {
     try {
       const discovery = await this.discoverToken(ticker);
-      
-      return Object.values(discovery.exchanges).some(listing => 
-        listing.spot || listing.futures
-      );
+
+      return Object.values(discovery.exchanges).some((listing) => listing.spot || listing.futures);
     } catch (error) {
       console.error(`Error checking if ${ticker} is listed:`, error);
       return false;
@@ -170,8 +179,8 @@ class TokenDiscoveryService {
   // Add new exchange to the discovery service
   addExchange(name: string, instance: any, supportedMarkets: MarketType[]): void {
     // Check if exchange already exists
-    const existingIndex = this.exchanges.findIndex(ex => ex.name === name);
-    
+    const existingIndex = this.exchanges.findIndex((ex) => ex.name === name);
+
     if (existingIndex >= 0) {
       this.exchanges[existingIndex] = { name, instance, supportedMarkets };
     } else {
@@ -181,9 +190,9 @@ class TokenDiscoveryService {
 
   // Get all supported exchanges
   getSupportedExchanges(): { name: string; markets: MarketType[] }[] {
-    return this.exchanges.map(ex => ({
+    return this.exchanges.map((ex) => ({
       name: ex.name,
-      markets: [...ex.supportedMarkets]
+      markets: [...ex.supportedMarkets],
     }));
   }
 }
