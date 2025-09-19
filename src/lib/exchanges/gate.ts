@@ -49,7 +49,6 @@ export class GateExchange extends BaseExchange {
     this.setupWebSocket(wsUrl, ticker, 'futures');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   parseMessage(data: any, marketType: MarketType): PriceData | null {
     try {
       if (marketType === 'spot') {
@@ -66,21 +65,26 @@ export class GateExchange extends BaseExchange {
   private parseSpotMessage(data: any): PriceData | null {
     const symbol = `${this.ticker.toUpperCase()}USDT`;
     try {
-      if (typeof data === 'string') {
-        data = JSON.parse(data);
+      if (typeof data === 'string') data = JSON.parse(data);
+
+      if (data.event && data.event !== 'update') {
+        // subscription ack, ignore
+        return null;
       }
-      console.log(`[GATE] SPOT RESPONSE: ${JSON.stringify(data, null, 2)}`);
-      // console.log('Book Ticker:', JSON.stringify(wrapper.publicAggreBookTicker, null, 2));
-      // console.log(`[GATE] SPOT price: ${data.result.last}`);
-			return null;
-      // return {
-      //   exchange: 'gate',
-      //   symbol: symbol,
-      //   price: parseFloat(data.result.last),
-      //   timestamp: Date.now(),
-      //   type: 'spot',
-      //   volume: parseFloat(data.result.quote_volume || '0'),
-      // };
+
+      if (!data.result || !data.result.last) return null;
+
+      //console.log(`[GATE] SPOT RESPONSE: ${JSON.stringify(data, null, 2)}`);
+      console.log(`[GATE] SPOT price: ${data.result.last}`);
+
+      return {
+        exchange: 'gate',
+        symbol: symbol,
+        price: parseFloat(data.result.last),
+        timestamp: Date.now(),
+        type: 'spot',
+        volume: parseFloat(data.result.quote_volume || '0'),
+      };
     } catch (error) {
       console.warn('[GATE] Spot JSON parsing failed:', error);
       return null;
@@ -88,24 +92,27 @@ export class GateExchange extends BaseExchange {
   }
   private parseFuturesMessage(data: any): PriceData | null {
     const symbol = `${this.ticker.toUpperCase()}USDT`;
-    try {
-      if (typeof data === 'string') {
-        data = JSON.parse(data);
-      }
-      console.log(`[GATE] FUTURES RESPONSE: ${JSON.stringify(data, null, 2)}`);
+    // console.log(`[GATE] FUTURES RESPONSE: ${JSON.stringify(data, null, 2)}`);
 
-      //      console.log(`[GATE] FUTURES price: ${data.result[0].last}`);
-			return null;
-      // return {
-      //   exchange: 'gate-futures',
-      //   symbol: symbol,
-      //   price: parseFloat(data.result[0].last),
-      //   timestamp: Date.now(),
-      //   type: 'futures',
-      //   volume: parseFloat(data.result[0].volume_24h_quote || '0'),
-      // };
+    try {
+      if (typeof data === 'string') data = JSON.parse(data);
+
+      if (!data || data.event !== 'update') return null;
+      if (!Array.isArray(data.result) || data.result.length === 0) return null;
+
+      const ticker = data.result[0];
+      console.log(`[GATE] Futures price: ${ticker.last}`);
+
+      return {
+        exchange: 'gate-futures',
+        symbol,
+        price: parseFloat(ticker.last),
+        timestamp: Date.now(),
+        type: 'futures',
+        volume: parseFloat(ticker.volume_24h_quote || '0'),
+      };
     } catch (error) {
-      console.warn('[GATE] Futures JSON parsing failed:', error);
+      console.warn('[GATE] Futures JSON parsing failed:', error, data);
       return null;
     }
   }

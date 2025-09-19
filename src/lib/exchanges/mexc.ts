@@ -84,42 +84,64 @@ export class MEXCExchange extends BaseExchange {
 
   private parseFuturesMessage(data: any): PriceData | null {
     try {
-      // if (typeof data === 'string') {
-      //   data = JSON.parse(data);
-      // }
+      // console.log(`[MEXC] FUTURES RESPONSE: ${JSON.stringify(data, null, 2)}`);
 
-      if (data.channel === 'push.ticker') {
-        const tickerData = data.data;
-        if (!tickerData) return null;
-        console.log(`[MEXC] Futures price: ${tickerData.lastPrice}`);
-        return {
-          exchange: 'mexc-futures',
-          symbol: tickerData.symbol,
-          price: parseFloat(tickerData.lastPrice),
-          timestamp: tickerData.timestamp || Date.now(),
-          type: 'futures',
-          volume: parseFloat(tickerData.volume || '0'),
-        };
+      if (typeof data === 'string') {
+        if (['success', 'pong', 'subscribed'].includes(data)) {
+          console.log(`[MEXC] Futures control message: ${data}`);
+          return null;
+        }
+        try {
+          data = JSON.parse(data);
+        } catch {
+          console.warn('[MEXC] Futures received non-JSON string:', data);
+          return null;
+        }
       }
 
-      if (data.channel === 'push.depth') {
-        const depthData = data.data;
-        if (!depthData || !depthData.bids || !depthData.asks) return null;
+      if (data && data.channel) {
+        if (['rs.error', 'pong', 'sub.ticker'].includes(data.channel)) return null;
 
-        const bestBid = depthData.bids[0]?.[0];
-        const bestAsk = depthData.asks[0]?.[0];
+        if (data.channel === 'push.ticker') {
+          const t = data.data;
+          if (!t) return null;
+          console.log(`[MEXC] Futures price: ${t.lastPrice}`);
+          return {
+            exchange: 'mexc-futures',
+            symbol: t.symbol,
+            price: parseFloat(t.lastPrice),
+            timestamp: t.timestamp || Date.now(),
+            type: 'futures',
+            volume: parseFloat(t.volume || '0'),
+          };
+        }
 
-        if (!bestBid || !bestAsk) return null;
+        if (data.channel === 'push.depth') {
+          const d = data.data;
+          if (!d?.bids?.length || !d?.asks?.length) return null;
+          const mid = (parseFloat(d.bids[0][0]) + parseFloat(d.asks[0][0])) / 2;
+          return {
+            exchange: 'mexc-futures',
+            symbol: d.symbol,
+            price: mid,
+            timestamp: d.timestamp || Date.now(),
+            type: 'futures',
+            volume: 0,
+          };
+        }
 
-        const midPrice = (parseFloat(bestBid) + parseFloat(bestAsk)) / 2;
+        return null;
+      }
 
+      if (data && typeof data === 'object' && 'lastPrice' in data && 'symbol' in data) {
+        console.log(`[MEXC] Futures price: ${data.lastPrice}`);
         return {
           exchange: 'mexc-futures',
-          symbol: depthData.symbol,
-          price: midPrice,
-          timestamp: depthData.timestamp || Date.now(),
+          symbol: data.symbol,
+          price: parseFloat(data.lastPrice),
+          timestamp: data.timestamp || Date.now(),
           type: 'futures',
-          volume: 0,
+          volume: parseFloat(data.volume24 || '0'),
         };
       }
 
