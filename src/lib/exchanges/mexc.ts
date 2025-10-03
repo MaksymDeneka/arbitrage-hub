@@ -70,7 +70,7 @@ export class MEXCExchange extends BaseExchange {
     const symbol = `${this.ticker.toUpperCase()}USDT`;
     const deal = protobufManager.handleMEXCMessage(data);
     if (deal) {
-      console.log(`[MEXC] SPOT price: ${deal.price}`);
+      // console.log(`[MEXC] SPOT price: ${deal.price}`);
       return {
         exchange: 'mexc',
         symbol: symbol,
@@ -105,7 +105,7 @@ export class MEXCExchange extends BaseExchange {
         if (data.channel === 'push.ticker') {
           const t = data.data;
           if (!t) return null;
-          console.log(`[MEXC] Futures price: ${t.lastPrice}`);
+          // console.log(`[MEXC] Futures price: ${t.lastPrice}`);
           return {
             exchange: 'mexc-futures',
             symbol: t.symbol,
@@ -134,7 +134,7 @@ export class MEXCExchange extends BaseExchange {
       }
 
       if (data && typeof data === 'object' && 'lastPrice' in data && 'symbol' in data) {
-        console.log(`[MEXC] Futures price: ${data.lastPrice}`);
+        // console.log(`[MEXC] Futures price: ${data.lastPrice}`);
         return {
           exchange: 'mexc-futures',
           symbol: data.symbol,

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { BinanceExchange } from './exchanges/binance';
+import { BitGetExchange } from './exchanges/bitget';
 import { GateExchange } from './exchanges/gate';
 import { MEXCExchange } from './exchanges/mexc';
 import { MarketType, TokenListingInfo } from './types';
@@ -25,6 +26,11 @@ class TokenDiscoveryService {
     {
       name: 'gate',
       instance: new GateExchange(),
+      supportedMarkets: ['spot', 'futures'],
+    },
+    {
+      name: 'bitget',
+      instance: new BitGetExchange(),
       supportedMarkets: ['spot', 'futures'],
     },
   ];

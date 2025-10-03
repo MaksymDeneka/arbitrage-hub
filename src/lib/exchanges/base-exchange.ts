@@ -214,7 +214,6 @@ export abstract class BaseExchange {
         'data' in parsedData &&
         ('stream' in parsedData || 'channel' in parsedData)
       ) {
-        console.log('THE FIRST OPTION');
         const innerResult = this.parseMessage(parsedData.data, marketType);
         if (innerResult) {
           const exchangeKey =
@@ -225,7 +224,6 @@ export abstract class BaseExchange {
       }
 
       if (Array.isArray(parsedData)) {
-        console.log('SECOND OPTION');
         for (const item of parsedData) {
           const parsed = this.parseMessage(item, marketType);
           if (parsed) {
@@ -239,7 +237,6 @@ export abstract class BaseExchange {
 
       const priceUpdate = this.parseMessage(parsedData, marketType);
       if (priceUpdate) {
-        console.log('THE THIRD OPTION');
         const exchangeKey =
           marketType === 'spot' ? this.exchangeName : `${this.exchangeName}-futures`;
         priceStore.updatePrice(this.ticker, exchangeKey, priceUpdate);

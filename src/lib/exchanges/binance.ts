@@ -86,7 +86,7 @@ export class BinanceExchange extends BaseExchange {
   }
 
   private parseTicker(data: BinanceTickerMessage, marketType: MarketType): PriceData {
-    console.log(`[Binance] ${marketType} 24h ticker price: ${data.c}`);
+    // console.log(`[Binance] ${marketType} 24h ticker price: ${data.c}`);
 
     return {
       exchange: marketType === 'spot' ? 'binance' : 'binance-futures',

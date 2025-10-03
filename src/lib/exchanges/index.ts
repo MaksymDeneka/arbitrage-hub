@@ -3,6 +3,7 @@ import { MarketType } from '../types';
 import { BinanceExchange } from './binance';
 import { MEXCExchange } from './mexc';
 import { GateExchange } from './gate';
+import { BitGetExchange } from './bitget';
 
 export class ExchangeFactory {
   private static exchangeInstances = new Map<string, BaseExchange>();
@@ -25,6 +26,9 @@ export class ExchangeFactory {
       case 'gate':
         exchange = new GateExchange();
         break;
+      case 'bitget':
+        exchange = new BitGetExchange();
+        break;
       default:
         console.error(`Unknown exchange: ${exchangeName}`);
         return null;
@@ -42,6 +46,7 @@ export class ExchangeFactory {
       { name: 'binance', markets: ['spot', 'futures'] },
       { name: 'mexc', markets: ['spot', 'futures'] },
       { name: 'gate', markets: ['spot', 'futures'] },
+      { name: 'bitget', markets: ['spot', 'futures'] },
     ];
   }
 
